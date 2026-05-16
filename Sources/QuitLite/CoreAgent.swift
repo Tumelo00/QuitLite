@@ -28,6 +28,18 @@ enum CoreAgent {
         (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? ""
     }
 
+    /// Uygulama bir Applications klasöründe mi çalışıyor? Çekirdek yalnızca
+    /// burada kurulmalıdır: DMG'den, İndirilenler'den ya da Gatekeeper'ın
+    /// taşıdığı (App Translocation) geçici/salt-okunur yoldan kurulursa, o yol
+    /// kaybolduğunda LaunchAgent kalıcı olarak bozuk bir binary'yi gösterir.
+    static var isInApplicationsFolder: Bool {
+        let path = Bundle.main.bundlePath
+        if path.hasPrefix("/Applications/") { return true }
+        let userApps = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Applications").path
+        return path.hasPrefix(userApps + "/")
+    }
+
     static var isRegistered: Bool {
         FileManager.default.fileExists(atPath: plistURL.path)
     }
@@ -60,14 +72,22 @@ enum CoreAgent {
             return true
         }
         if allowFirstInstall {
-            register()
-            return true
+            // register() sonucunu döndür: /Applications dışından kurulum
+            // reddedilirse synchronize() false döner, didInstall işaretlenmez,
+            // kullanıcı uygulamayı taşıyıp yeniden açınca kurulum tekrar denenir.
+            return register()
         }
         return false
     }
 
     @discardableResult
     static func register() -> Bool {
+        // /Applications dışından (DMG, İndirilenler, translocated yol) kuruluma
+        // izin verme — çekirdek o yol kaybolunca kalıcı olarak bozulur.
+        guard isInApplicationsFolder else {
+            NSLog("QuitLite: /Applications dışından kurulum reddedildi — \(Bundle.main.bundlePath)")
+            return false
+        }
         let binary = mainBinaryPath
         guard FileManager.default.fileExists(atPath: binary) else {
             NSLog("QuitLite: binary bulunamadı: \(binary)")
@@ -96,14 +116,17 @@ enum CoreAgent {
             NSLog("QuitLite: LaunchAgent plist yazılamadı — \(error.localizedDescription)")
             return false
         }
-        // Plist artık güncel binary'yi gösteriyor — kurulu sürümü kaydet ki
-        // sonraki yerinde güncellemede synchronize() yeniden kayıt yapsın.
-        Preferences.shared.installedCoreVersion = currentVersion
-
         let domain = "gui/\(getuid())"
         // Olası eski kaydı temizle (uygulamanın yolu değişmiş olabilir), sonra yükle.
         _ = runLaunchctl(["bootout", domain, plistURL.path])
-        return runLaunchctl(["bootstrap", domain, plistURL.path])
+        let ok = runLaunchctl(["bootstrap", domain, plistURL.path])
+        if ok {
+            // Kurulu sürümü yalnızca bootstrap BAŞARILI olursa kaydet; aksi halde
+            // synchronize() sürüm uyuşmazlığını görüp bir sonraki açılışta yeniden
+            // denesin (başarısız kayıt "tamamlandı" sanılmasın).
+            Preferences.shared.installedCoreVersion = currentVersion
+        }
+        return ok
     }
 
     @discardableResult

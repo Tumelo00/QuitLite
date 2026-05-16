@@ -20,6 +20,11 @@ final class AppWatcher {
     /// onları tek bir taramada birleştirir. Yalnızca ana thread'den okunup yazılır.
     private var evaluateScheduled = false
 
+    /// 'yok edildi' bildirimi kayıtlı olan pencere öğeleri. Her kayıt turundan
+    /// önce bunların kaydı kaldırılır; aksi halde yok edilmiş pencerelerin
+    /// kayıtları AXObserver'ın tablosunda zamanla sınırsız birikir (bellek sızıntısı).
+    private var registeredWindows: [AXUIElement] = []
+
     /// Uygulamanın izlenmeye başladığından beri en az bir penceresi oldu mu?
     /// Hiç pencere açmamış (menü çubuğu / arka plan) uygulamalar asla kapatılmaz.
     private(set) var hadWindow = false
@@ -82,24 +87,41 @@ final class AppWatcher {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value) == .success,
               let windows = value as? [AXUIElement] else { return nil }
-        return windows.filter { isStandardWindow($0) }
+        var result: [AXUIElement] = []
+        for window in windows {
+            // Herhangi bir pencerenin alt-rolü SORGULANAMAZSA (örn. izin tam bu
+            // sırada geri alındı) durum belirsizdir → nil dön. Aksi halde sorgu
+            // hataları "0 standart pencere" sanılıp uygulama yanlışlıkla kapatılır.
+            guard let standard = isStandardWindow(window) else { return nil }
+            if standard { result.append(window) }
+        }
+        return result
     }
 
-    private func isStandardWindow(_ window: AXUIElement) -> Bool {
+    /// true = standart pencere, false = değil, nil = alt-rol sorgulanamadı (AX hatası).
+    private func isStandardWindow(_ window: AXUIElement) -> Bool? {
         var roleValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(window, kAXSubroleAttribute as CFString, &roleValue) == .success,
-              let subrole = roleValue as? String else { return false }
+        guard AXUIElementCopyAttributeValue(window, kAXSubroleAttribute as CFString,
+                                            &roleValue) == .success else { return nil }
+        guard let subrole = roleValue as? String else { return false }
         return subrole == (kAXStandardWindowSubrole as String)
     }
 
-    /// Mevcut tüm pencerelere "yok edildi" bildirimi kaydeder.
-    /// Aynı pencereye tekrar kayıt zararsızdır (alreadyRegistered döner).
+    /// Mevcut pencerelere "yok edildi" bildirimi kaydeder. Önce önceki turdaki
+    /// kayıtları (yok edilmiş pencereler dahil) kaldırır ki AXObserver'ın kayıt
+    /// tablosu zamanla sınırsız büyümesin. AX durumu belirsizse kayıtlara dokunmaz.
     private func registerDestroyObservers() {
         guard let obs = observer else { return }
+        guard let current = standardWindows() else { return }
+        // Yok edilmiş öğelere RemoveNotification zararsızdır (hata döner, çökmez).
+        for window in registeredWindows {
+            AXObserverRemoveNotification(obs, window, kAXUIElementDestroyedNotification as CFString)
+        }
         let refcon = Unmanaged.passUnretained(self).toOpaque()
-        for window in (standardWindows() ?? []) {
+        for window in current {
             AXObserverAddNotification(obs, window, kAXUIElementDestroyedNotification as CFString, refcon)
         }
+        registeredWindows = current
     }
 
     /// Pencere sayısını yeniden hesaplar ve uygun callback'i tetikler.

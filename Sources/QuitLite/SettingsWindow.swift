@@ -122,6 +122,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate,
 
         let agentCheckbox = checkbox("Girişte başlat ve arka planda çalış",
                                      #selector(toggleAgent(_:)), CoreAgent.isRegistered)
+        // /Applications dışından çekirdek kurulamaz; seçeneği devre dışı bırak.
+        agentCheckbox.isEnabled = CoreAgent.isInApplicationsFolder
         stack.addArrangedSubview(agentCheckbox)
 
         enabledCheckbox = checkbox("Otomatik kapatmayı uygula",
@@ -255,13 +257,22 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate,
     // MARK: - Durum
 
     private func updateStatus() {
+        let version = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "?"
+        // /Applications dışından çekirdek kurulamaz — kullanıcıyı açıkça uyar.
+        guard CoreAgent.isInApplicationsFolder else {
+            statusLabel.stringValue = "⚠︎ QuitLite \(version) — uygulama /Applications "
+                + "klasöründe değil. Arka plan çekirdeği yalnızca oradan kurulabilir. "
+                + "QuitLite.app'i /Applications'a taşıyıp yeniden açın."
+            return
+        }
         // GUI ve çekirdek aynı binary (= aynı TCC kimliği) olduğu için izin
         // durumu doğrudan sorgulanabilir; dolaylı/bayatlayabilen bir ayara gerek yok.
         let registered = CoreAgent.isRegistered
         let trusted = AXIsProcessTrusted()
         let core = registered ? "kurulu" : "kurulu değil"
         let ax = trusted ? "verildi ✓" : "GEREKLİ — izin verin"
-        statusLabel.stringValue = "Arka plan çekirdeği: \(core)   ·   Erişilebilirlik izni: \(ax)"
+        statusLabel.stringValue = "QuitLite \(version)   ·   Arka plan çekirdeği: \(core)"
+            + "   ·   Erişilebilirlik izni: \(ax)"
     }
 
     /// Erişilebilirlik izni yoksa sistem iznini ister. Tek binary olduğundan

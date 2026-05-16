@@ -17,6 +17,11 @@ public final class Preferences {
     public static let defaultBlacklist: [String] = [
         "com.apple.finder",
         "com.apple.Preview",
+        // Pencere kapansa da arka planda ses/medya çalmaya devam eden uygulamalar:
+        "com.apple.Music",
+        "com.apple.podcasts",
+        "com.apple.TV",
+        "com.spotify.client",
         "com.if.Amphetamine",
         "com.adobe.bridge",
         "com.hnc.discord",

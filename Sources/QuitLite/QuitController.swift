@@ -55,6 +55,8 @@ final class QuitController {
             guard !watcher.app.isTerminated else { return }
             // İkinci (son) doğrulama: hâlâ kesin olarak 0 pencere mi?
             guard let windows = watcher.standardWindows(), windows.isEmpty else { return }
+            // Bekleme sırasında uygulama menü çubuğu moduna geçmiş olabilir.
+            guard watcher.app.activationPolicy == .regular else { return }
             // Bekleme sırasında uygulama kara listeye alınmış ya da otomatik
             // kapatma kapatılmış olabilir — son anda yeniden denetle.
             guard Preferences.shared.shouldManage(bundleID: watcher.bundleID) else { return }

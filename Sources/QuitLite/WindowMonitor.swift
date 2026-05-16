@@ -74,6 +74,9 @@ final class WindowMonitor {
     }
 
     private func handleWindowsEmptied(_ watcher: AppWatcher) {
+        // Uygulama izlenmeye başladıktan sonra menü çubuğu moduna (.accessory)
+        // geçmiş olabilir; o hâlde penceresiz çalışması normaldir, kapatma.
+        guard watcher.app.activationPolicy == .regular else { return }
         guard Preferences.shared.shouldManage(bundleID: watcher.bundleID) else { return }
         quitController.scheduleQuit(for: watcher, delay: Preferences.shared.quitDelay)
     }

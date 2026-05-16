@@ -53,15 +53,35 @@ Gereksinim: Swift 5.9+ ve Xcode komut satırı araçları.
 En son `QuitLite.dmg`, deponun **Releases → "latest"** sayfasından indirilebilir;
 her `main` push'unda GitHub Actions tarafından macOS üzerinde otomatik derlenir.
 
-1. `QuitLite.dmg`'yi açın, `QuitLite.app`'i `/Applications`'a sürükleyin.
-2. İlk açılışta Gatekeeper uyarısı çıkarsa: sağ tık → **Aç**, ya da
-   `xattr -dr com.apple.quarantine /Applications/QuitLite.app`.
+1. `QuitLite.dmg`'yi açın, `QuitLite.app`'i **mutlaka `/Applications`'a**
+   sürükleyin. QuitLite'ı DMG'den, İndirilenler'den veya başka bir konumdan
+   doğrudan çalıştırmayın — arka plan çekirdeği yalnızca `/Applications`'tan
+   düzgün kurulur (macOS, taşınmamış uygulamaları geçici bir yoldan çalıştırır
+   ve bu yol kaybolunca çekirdek bozulur). QuitLite bunu algılayıp uyarır.
+2. İlk açılışta Gatekeeper uyarısı çıkar (uygulama kendinden imzalıdır):
+   - **macOS 15 (Sequoia) ve üstü:** Sistem Ayarları → **Gizlilik ve Güvenlik**
+     → en altta "QuitLite engellendi" yanında **Yine de Aç**.
+   - **macOS 14 ve altı:** `QuitLite.app`'e sağ tık → **Aç** → **Aç**.
+   - Alternatif (tüm sürümler), Terminal'de:
+     `xattr -dr com.apple.quarantine /Applications/QuitLite.app`
 3. `QuitLite.app`'i açın — ayar penceresi gelir, arka plan çekirdeği kurulur.
 4. Sistem Ayarları → Gizlilik ve Güvenlik → **Erişilebilirlik** altında
    **QuitLite**'a izin verin. Listede görünmüyorsa **+** düğmesiyle
    `QuitLite.app`'i ekleyip anahtarını açın.
 
 Ayarları sonradan değiştirmek için yine `QuitLite.app`'i açın.
+
+## Kaldırma
+
+1. `QuitLite.app`'i açın, en alttaki **QuitLite'tan Çık** düğmesine basın —
+   bu, arka plan çekirdeğini durdurur ve girişte otomatik başlatmayı kaldırır.
+2. `QuitLite.app`'i Çöp'e taşıyın.
+
+"QuitLite'tan Çık" demeden uygulamayı silerseniz `~/Library/LaunchAgents/`
+altında `com.tumerustunel.QuitLite.Core.plist` artığı kalır; şu komutla
+temizleyebilirsiniz:
+`launchctl bootout gui/$(id -u)/com.tumerustunel.QuitLite.Core 2>/dev/null;
+rm -f ~/Library/LaunchAgents/com.tumerustunel.QuitLite.Core.plist`
 
 ## Notlar
 
