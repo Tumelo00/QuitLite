@@ -1,0 +1,4 @@
+# Tüm metin dosyaları depoda ve çalışma kopyasında LF satır sonu kullanır.
+# build.sh CRLF ile bozulacağı için bu zorunludur (macOS'ta derlenir).
+* text=auto eol=lf
+*.sh text eol=lf

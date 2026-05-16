@@ -1,0 +1,6 @@
+.build/
+*.app
+*.dmg
+.DS_Store
+*.xcuserdatad
+Package.resolved
