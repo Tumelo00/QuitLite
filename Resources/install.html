@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuitLite Kurulumu</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    background: #eef1f7; color: #1d1f25;
+    display: flex; justify-content: center; padding: 40px 20px;
+  }
+  .card {
+    background: #fff; max-width: 580px; width: 100%;
+    border-radius: 16px; overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.13);
+  }
+  .head {
+    background: linear-gradient(160deg, #5B8DEF, #2A4FB8);
+    color: #fff; padding: 30px 34px;
+  }
+  .head h1 { font-size: 23px; }
+  .head p { opacity: .92; margin-top: 6px; font-size: 13px; }
+  .body { padding: 26px 34px 32px; }
+  .step { display: flex; gap: 15px; margin-top: 22px; }
+  .step:first-child { margin-top: 0; }
+  .num {
+    flex: none; width: 27px; height: 27px; border-radius: 50%;
+    background: #2A4FB8; color: #fff; font-weight: 600; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step-body { flex: 1; }
+  .step-body strong { display: block; margin-bottom: 3px; font-size: 15px; }
+  .cmd {
+    margin-top: 11px; background: #1d1f25; color: #e8eaf0;
+    font: 13px/1.5 "SF Mono", Menlo, monospace;
+    padding: 13px 15px; border-radius: 9px; word-break: break-all;
+    user-select: all; -webkit-user-select: all;
+  }
+  button {
+    margin-top: 11px; background: #2A4FB8; color: #fff; border: 0;
+    padding: 11px 20px; border-radius: 9px; font-size: 14px; font-weight: 600;
+    cursor: pointer;
+  }
+  button:active { background: #1f3c91; }
+  .note {
+    margin-top: 26px; padding: 15px 17px; background: #f3f5fa;
+    border-radius: 9px; font-size: 13px; color: #555;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="head">
+    <h1>QuitLite Kurulumu</h1>
+    <p>QuitLite ücretsiz ve açık kaynaktır. Apple tarafından onaylanmadığı
+       (notarize edilmediği) için macOS ilk açılışta engeller — aşağıdaki tek
+       seferlik adımlar bu engeli aşar.</p>
+  </div>
+  <div class="body">
+    <div class="step">
+      <div class="num">1</div>
+      <div class="step-body">
+        <strong>QuitLite.app'i Applications'a sürükleyin</strong>
+        Bu dosyayla birlikte açılan DMG penceresinde <em>QuitLite.app</em>'i
+        <em>Applications</em> kısayoluna sürükleyip bırakın.
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">2</div>
+      <div class="step-body">
+        <strong>Aşağıdaki komutu kopyalayın</strong>
+        <div class="cmd" id="cmd">xattr -dr com.apple.quarantine /Applications/QuitLite.app &amp;&amp; open /Applications/QuitLite.app</div>
+        <button id="btn" onclick="copyCmd()">Komutu Kopyala</button>
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">3</div>
+      <div class="step-body">
+        <strong>Terminal'de çalıştırın</strong>
+        Terminal'i açın (Spotlight'ta — Cmd+Boşluk — "Terminal" yazın),
+        komutu yapıştırın (Cmd+V) ve Enter'a basın. QuitLite açılır.
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">4</div>
+      <div class="step-body">
+        <strong>Erişilebilirlik izni verin</strong>
+        Sistem Ayarları → Gizlilik ve Güvenlik → Erişilebilirlik altında
+        QuitLite'ı bulup anahtarını açın.
+      </div>
+    </div>
+    <div class="note">
+      Bu adımlar yalnızca <strong>ilk sefer</strong> gereklidir; sonrasında
+      QuitLite her zaman normal açılır. Komut yalnızca macOS'un "karantina"
+      etiketini kaldırır — uygulamayı veya sisteminizi değiştirmez.
+    </div>
+  </div>
+</div>
+<script>
+function copyCmd() {
+  var text = document.getElementById('cmd').textContent;
+  var btn = document.getElementById('btn');
+  function ok() {
+    btn.textContent = '✓ Kopyalandı';
+    setTimeout(function () { btn.textContent = 'Komutu Kopyala'; }, 2000);
+  }
+  function fallback() {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); ok(); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(ok, fallback);
+  } else {
+    fallback();
+  }
+}
+</script>
+</body>
+</html>

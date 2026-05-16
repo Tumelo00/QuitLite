@@ -54,6 +54,9 @@ Gereksinim: Swift 5.9+ ve Xcode komut satırı araçları.
 En son `QuitLite.dmg`, deponun **Releases → "latest"** sayfasından indirilebilir;
 her `main` push'unda GitHub Actions tarafından macOS üzerinde otomatik derlenir.
 
+DMG'yi açtığınızda içindeki **`Önce Beni Aç.html`** dosyası, aşağıdaki adımları
+ve kopyalanabilir komutu görsel bir sayfa olarak gösterir.
+
 1. `QuitLite.dmg`'yi açın, `QuitLite.app`'i DMG'deki **`Applications`**
    kısayoluna sürükleyin. QuitLite'ı `/Applications` dışından çalıştırmayın —
    arka plan çekirdeği yalnızca oradan düzgün kurulur.

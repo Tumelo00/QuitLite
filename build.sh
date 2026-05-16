@@ -67,6 +67,9 @@ rm -f "$DMG"
 STAGE="$(mktemp -d)"
 ditto "$APP" "$STAGE/$APP"
 ln -s /Applications "$STAGE/Applications"
+# Kopyala butonlu kurulum rehberi. HTML bir belgedir; Gatekeeper engellemez
+# (yalnızca uygulama/betik gibi çalıştırılabilirleri engeller).
+cp Resources/install.html "$STAGE/Önce Beni Aç.html"
 hdiutil create -volname "QuitLite" -srcfolder "$STAGE" -ov -format UDZO \
   -imagekey zlib-level=9 -quiet "$DMG"
 rm -rf "$STAGE"
