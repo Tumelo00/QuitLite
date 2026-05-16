@@ -2,7 +2,8 @@
 
 Son penceresi kapanan macOS uygulamalarını otomatik olarak kapatan, aşırı hafif
 bir araç. "Last Window Quits" benzeri; arka plan çekirdeği yalnızca **~2.3 MB RAM**
-kullanır, kurulu boyutu **~180 KB**, DMG ise **~72 KB**.
+kullanır. Kurulu boyut ve DMG birkaç yüz KB'dir (uygulama ikonu dahil; binary
+tek başına ~180 KB).
 
 ## Mimari
 
