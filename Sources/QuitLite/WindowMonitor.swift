@@ -53,7 +53,9 @@ final class WindowMonitor {
 
     private func addWatcher(for app: NSRunningApplication) {
         let pid = app.processIdentifier
-        guard pid > 0, watchers[pid] == nil else { return }
+        // isTerminated: tarama, runningApplications'ta henüz görünen ama çoktan
+        // sonlanmış bir uygulamayı geçebilir — ölü pid için AXObserver kurma.
+        guard pid > 0, !app.isTerminated, watchers[pid] == nil else { return }
         guard let watcher = AppWatcher(app: app) else { return }
         guard watcher.bundleID != kGUIBundleID else { return }
 

@@ -346,6 +346,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate,
     @objc private func delayChanged(_ sender: NSSlider) {
         prefs.quitDelay = sender.doubleValue
         updateDelayLabel()
+        // Slider süreklidir; her piksel için değil, yalnızca sürükleme bitince
+        // diske yaz — yoksa çalışan çekirdek yeni gecikmeyi görmezdi.
+        if NSApp.currentEvent?.type == .leftMouseUp {
+            prefs.flush()
+        }
     }
 
     @objc private func modeChanged(_ sender: NSButton) {
@@ -375,7 +380,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate,
 
         guard panel.runModal() == .OK else { return }
         for url in panel.urls {
-            if let id = Bundle(url: url)?.bundleIdentifier {
+            // QuitLite kendini listeye eklemesin (zaten yönetilmez; kafa karıştırır).
+            if let id = Bundle(url: url)?.bundleIdentifier, id != kGUIBundleID {
                 entries.append(id)
             }
         }

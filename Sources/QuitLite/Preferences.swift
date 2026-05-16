@@ -86,7 +86,13 @@ public final class Preferences {
 
     /// Son pencere kapandıktan sonra kapatmaya kadar beklenen süre (saniye).
     public var quitDelay: TimeInterval {
-        get { defaults.double(forKey: Key.quitDelay) }
+        get {
+            // Bozuk/elle düzenlenmiş bir plist NaN ya da aralık dışı değer
+            // verebilir; her zaman geçerli bir süre döndür.
+            let raw = defaults.double(forKey: Key.quitDelay)
+            guard raw.isFinite else { return 2.0 }
+            return min(max(raw, Preferences.minQuitDelay), Preferences.maxQuitDelay)
+        }
         set {
             let clamped = min(max(newValue, Preferences.minQuitDelay), Preferences.maxQuitDelay)
             defaults.set(clamped, forKey: Key.quitDelay)
