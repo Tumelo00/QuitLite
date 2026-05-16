@@ -315,7 +315,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate,
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Durdur ve Çık")
         alert.addButton(withTitle: "Vazgeç")
-        guard alert.runModal() == .alertFirstButtonResponse else { return }
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
         CoreAgent.unregister()
         NSApp.terminate(nil)
     }
