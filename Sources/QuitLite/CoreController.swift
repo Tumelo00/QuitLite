@@ -9,7 +9,19 @@ final class CoreController {
     private let monitor = WindowMonitor()
     private var monitoring = false
 
+    /// App Nap'i kapatan etkinlik bildiriminin tokenı. Süreç boyunca tutulur
+    /// (asla endActivity çağrılmaz); serbest bırakılırsa App Nap geri gelir.
+    private var activityToken: NSObjectProtocol?
+
     func start() {
+        // App Nap'i devre dışı bırak: menü çubuğu modunda çekirdek görünür
+        // penceresi olmayan bir NSApplication'dır ve App Nap onu askıya alıp
+        // pencere izlemeyi saatlerce durdurabilir. ...AllowingIdleSystemSleep
+        // seçeneği sistemin normal uyumasını ENGELLEMEZ (uykudayken kapanacak
+        // pencere zaten yoktur; uyanışta izleme kaldığı yerden sürer).
+        activityToken = ProcessInfo.processInfo.beginActivity(
+            options: .userInitiatedAllowingIdleSystemSleep,
+            reason: "QuitLite pencere izleme")
         // İlk açılışta sistemin izin penceresini göster.
         _ = axTrusted(prompt: true)
         tick()

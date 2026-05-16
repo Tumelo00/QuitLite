@@ -11,7 +11,7 @@ Tek bir binary, iki modda çalışır:
 - **Çekirdek modu** (`QuitLite --core`) — `NSApplication` yok, menü çubuğu yok,
   dock yok, ikon yok. Tüm izleme ve kapatma işini yapar. **~2.3 MB**, sürekli
   çalışır. `launchd` yönetir: girişte başlar, çökerse yeniden başlatılır,
-  `ProcessType=Background` ile düşük öncelikli çalışır.
+  `ProcessType=Adaptive` ile boştayken düşük öncelikli, iş çıkınca yükseltilir.
 - **Ayar penceresi modu** (varsayılan) — yalnızca `QuitLite.app`'i açınca çalışır;
   pencere kapanınca süreç sonlanır. Arka planda iz bırakmaz.
 

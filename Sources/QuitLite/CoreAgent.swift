@@ -99,7 +99,10 @@ enum CoreAgent {
             "ProgramArguments": [binary, "--core"],
             "RunAtLoad": true,
             "KeepAlive": true,
-            "ProcessType": "Background",
+            // Adaptive: boştayken düşük öncelikli, izlenecek iş çıkınca sistem
+            // süreci yükseltir. Background tier'ı, ~10 sn'de tepki vermesi
+            // gereken bir izleyici için fazla agresif throttle uygular.
+            "ProcessType": "Adaptive",
             // Nadir disk yazımları (UserDefaults) ön plandaki I/O ile yarışmasın.
             "LowPriorityBackgroundIO": true,
             // Giriş Öğeleri arayüzünde ajanı uygulamayla grupla (macOS 13+).

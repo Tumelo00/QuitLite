@@ -40,16 +40,23 @@ final class AppWatcher {
         self.pid = app.processIdentifier
         self.bundleID = bid
         self.axApp = AXUIElementCreateApplication(app.processIdentifier)
-        // Yanıt vermeyen bir uygulama çekirdeğin ana thread'ini kilitlemesin diye
-        // AX çağrılarına üst zaman sınırı koy.
-        AXUIElementSetMessagingTimeout(axApp, 1.0)
+        // Yanıt vermeyen bir uygulama çekirdeğin ana thread'ini uzun süre
+        // kilitlemesin diye AX çağrılarına sıkı bir zaman sınırı koy. 0,3 sn
+        // sağlıklı bir uygulama için fazlasıyla yeterli (AX yanıtları genelde
+        // <10 ms); donmuş bir uygulama her çağrıda en fazla 0,3 sn bloklar.
+        AXUIElementSetMessagingTimeout(axApp, 0.3)
     }
 
     func start() {
         // İki kez başlatılırsa ikinci observer sızar; zaten çalışıyorsa çık.
         guard observer == nil else { return }
         var obs: AXObserver?
-        guard AXObserverCreate(pid, axObserverCallback, &obs) == .success, let obs else { return }
+        guard AXObserverCreate(pid, axObserverCallback, &obs) == .success, let obs else {
+            // Nadir. Uygulama yine de emniyet taramasıyla izlenir (olay tabanlı
+            // değil, ~10 sn gecikmeli); sessiz kalmasın diye kaydet.
+            NSLog("QuitLite: AXObserver oluşturulamadı — pid \(pid) (\(bundleID))")
+            return
+        }
         observer = obs
 
         let refcon = Unmanaged.passUnretained(self).toOpaque()
