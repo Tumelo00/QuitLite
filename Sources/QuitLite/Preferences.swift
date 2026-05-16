@@ -50,6 +50,7 @@ public final class Preferences {
         static let didSeed = "didSeedBlacklist"
         static let didInstall = "didInstall"
         static let showMenuBarIcon = "showMenuBarIcon"
+        static let installedCoreVersion = "installedCoreVersion"
     }
 
     private let defaults: UserDefaults
@@ -110,6 +111,14 @@ public final class Preferences {
     public var showMenuBarIcon: Bool {
         get { defaults.bool(forKey: Key.showMenuBarIcon) }
         set { defaults.set(newValue, forKey: Key.showMenuBarIcon) }
+    }
+
+    /// Kayıtlı LaunchAgent'ın işaret ettiği uygulamanın derleme numarası.
+    /// Yerinde güncellemeyi (yol aynı, binary yeni) saptamak için kullanılır:
+    /// CoreAgent.synchronize() bu değer mevcut sürümle uyuşmazsa yeniden kaydeder.
+    public var installedCoreVersion: String {
+        get { defaults.string(forKey: Key.installedCoreVersion) ?? "" }
+        set { defaults.set(newValue, forKey: Key.installedCoreVersion) }
     }
 
     /// Bekleyen ayar yazımlarını diske zorlar. Çekirdek süreci yeniden

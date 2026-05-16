@@ -23,6 +23,11 @@ enum CoreAgent {
         Bundle.main.bundlePath + "/Contents/MacOS/QuitLite"
     }
 
+    /// Çalışmakta olan uygulamanın derleme numarası (CFBundleVersion).
+    private static var currentVersion: String {
+        (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? ""
+    }
+
     static var isRegistered: Bool {
         FileManager.default.fileExists(atPath: plistURL.path)
     }
@@ -41,12 +46,15 @@ enum CoreAgent {
     /// yere durdurup yeniden başlatmadan:
     /// - Kayıt yok + ilk kuruluma izin var → kaydet.
     /// - Kayıt var ama uygulama taşınmış (yol değişmiş) → yeniden kaydet.
-    /// - Kayıt var ve yol doğru → DOKUNMA (bekleyen kapatmalar korunur).
+    /// - Kayıt var ama sürüm değişmiş (yerinde güncelleme) → yeniden kaydet;
+    ///   aksi halde çalışan çekirdek hâlâ eski binary'yi belleğinde tutar.
+    /// - Kayıt var, yol ve sürüm doğru → DOKUNMA (bekleyen kapatmalar korunur).
     /// Geriye çekirdeğin kurulu olup olmadığını döner.
     @discardableResult
     static func synchronize(allowFirstInstall: Bool) -> Bool {
         if isRegistered {
-            if installedBinaryPath != mainBinaryPath {
+            if installedBinaryPath != mainBinaryPath
+                || Preferences.shared.installedCoreVersion != currentVersion {
                 register()
             }
             return true
@@ -75,7 +83,8 @@ enum CoreAgent {
             // Nadir disk yazımları (UserDefaults) ön plandaki I/O ile yarışmasın.
             "LowPriorityBackgroundIO": true,
             // Giriş Öğeleri arayüzünde ajanı uygulamayla grupla (macOS 13+).
-            "AssociatedBundleIdentifiers": kGUIBundleID
+            // Bu anahtarın türü dizidir; tek kimlik de dizi içinde verilir.
+            "AssociatedBundleIdentifiers": [kGUIBundleID]
         ]
         do {
             try FileManager.default.createDirectory(
@@ -87,6 +96,9 @@ enum CoreAgent {
             NSLog("QuitLite: LaunchAgent plist yazılamadı — \(error.localizedDescription)")
             return false
         }
+        // Plist artık güncel binary'yi gösteriyor — kurulu sürümü kaydet ki
+        // sonraki yerinde güncellemede synchronize() yeniden kayıt yapsın.
+        Preferences.shared.installedCoreVersion = currentVersion
 
         let domain = "gui/\(getuid())"
         // Olası eski kaydı temizle (uygulamanın yolu değişmiş olabilir), sonra yükle.

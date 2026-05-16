@@ -7,6 +7,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Eşzamanlı push'larda yalnızca en son derleme yayımlansın; eskisi iptal edilir.
+# Aksi halde iki run "latest" sürümü/etiketi üzerinde yarışır.
+concurrency:
+  group: build-dmg
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -20,8 +26,9 @@ jobs:
       - name: İmzalama sertifikasını içe aktar
         # Kendinden imzalı sertifikayı geçici bir anahtar zincirine yükler.
         # Sertifika sabit olduğu için imza her derlemede aynı kalır → Erişilebilirlik
-        # (TCC) izni korunur. Secret yoksa veya içe aktarma başarısız olursa adım
-        # yine de başarıyla biter; build.sh ad-hoc imzaya düşer.
+        # (TCC) izni korunur. Secret HİÇ yoksa adım sessizce geçer (build.sh ad-hoc
+        # imzalar). Ama secret VARSA ve içe aktarma başarısızsa adım hata verir —
+        # böylece sessizce imzasız bir DMG "latest" olarak yayımlanmaz.
         env:
           CERT_P12: ${{ secrets.SIGNING_CERTIFICATE_P12 }}
           CERT_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
@@ -42,7 +49,9 @@ jobs:
             echo "QUITLITE_SIGN_ID=QuitLite Self-Signed" >> "$GITHUB_ENV"
             echo "::notice::Kendinden imzalı sertifika içe aktarıldı."
           else
-            echo "::warning::Sertifika içe aktarılamadı; ad-hoc imzalanacak."
+            rm -f "$RUNNER_TEMP/cert.p12"
+            echo "::error::Sertifika içe aktarılamadı; derleme durduruluyor."
+            exit 1
           fi
           rm -f "$RUNNER_TEMP/cert.p12"
 

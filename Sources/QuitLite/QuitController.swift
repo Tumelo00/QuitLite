@@ -9,11 +9,12 @@ final class QuitController {
 
     private var pending: [pid_t: DispatchWorkItem] = [:]
 
-    /// İlk doğrulama "0 pencere" derse, kapatmadan önce kısa bir süre sonra
-    /// ikinci kez doğrulanır. Yeni belge açma, tam ekrana geçiş gibi durumlarda
-    /// uygulama bir an "0 pencere" raporlar; bu çift doğrulama o anlık boşlukları
-    /// eler. Gecikme "Anında" (0 sn) seçilse bile yanlış kapatma önlenir.
-    private let recheckInterval: TimeInterval = 0.4
+    /// İlk doğrulama "0 pencere" derse, kapatmadan önce bu süre kadar beklenip
+    /// ikinci kez doğrulanır. Yeni belge açma, tam ekrana/Space geçişi gibi
+    /// durumlarda uygulama bir an "0 pencere" raporlar; bu çift doğrulama o anlık
+    /// boşlukları eler. 1 sn, tam ekran animasyonu (~0,5-0,7 sn) gibi en uzun
+    /// geçişleri de kapsar — gecikme "Anında" seçilse bile yanlış kapatma önlenir.
+    private let recheckInterval: TimeInterval = 1.0
 
     /// Kapatma isteği gönderilmiş pid'ler. Aynı uygulamaya tekrar tekrar
     /// `terminate()` çağrılmasını önler — örn. uygulama "Kaydedilsin mi?"
@@ -54,8 +55,15 @@ final class QuitController {
             guard !watcher.app.isTerminated else { return }
             // İkinci (son) doğrulama: hâlâ kesin olarak 0 pencere mi?
             guard let windows = watcher.standardWindows(), windows.isEmpty else { return }
-            self.quitRequested.insert(watcher.pid)
-            watcher.app.terminate()
+            // Bekleme sırasında uygulama kara listeye alınmış ya da otomatik
+            // kapatma kapatılmış olabilir — son anda yeniden denetle.
+            guard Preferences.shared.shouldManage(bundleID: watcher.bundleID) else { return }
+            // quitRequested'a yalnızca kapatma isteği BAŞARIYLA gönderilirse ekle.
+            // terminate() false dönerse istek gitmemiştir; pid'i işaretlersek
+            // uygulama bir daha hiç kapatılamaz — bu yüzden yalnızca başarıda işaretle.
+            if watcher.app.terminate() {
+                self.quitRequested.insert(watcher.pid)
+            }
         }
         // pending[pid] daima o an bekleyen iş öğesini gösterir; böylece
         // cancelQuit her iki aşamayı da iptal edebilir.

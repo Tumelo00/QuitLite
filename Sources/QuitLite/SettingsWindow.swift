@@ -294,6 +294,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate,
 
     @objc private func toggleEnabled(_ sender: NSButton) {
         prefs.enabled = (sender.state == .on)
+        // Çalışan çekirdek değişikliği gecikmeden görsün diye diske yaz.
+        prefs.flush()
     }
 
     @objc private func toggleMenuBarIcon(_ sender: NSButton) {
@@ -327,6 +329,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate,
 
     @objc private func modeChanged(_ sender: NSButton) {
         prefs.mode = QuitMode(rawValue: sender.tag) ?? .allApps
+        prefs.flush()
         allAppsRadio.state = sender.tag == QuitMode.allApps.rawValue ? .on : .off
         whitelistRadio.state = sender.tag == QuitMode.whitelistOnly.rawValue ? .on : .off
         reloadList()
@@ -383,6 +386,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate,
         } else {
             prefs.blacklist = entries
         }
+        prefs.flush()
         reloadList()
     }
 

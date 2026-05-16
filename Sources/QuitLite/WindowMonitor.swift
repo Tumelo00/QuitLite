@@ -88,6 +88,11 @@ final class WindowMonitor {
 
     @objc private func appTerminated(_ note: Notification) {
         guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
+        // pid işletim sistemi tarafından yeniden kullanılmış olabilir ve
+        // launch/terminate bildirimleri sıra dışı gelebilir: yalnızca kayıtlı
+        // watcher gerçekten BU uygulamaya aitse kaldır. Yanlış pozitifte watcher
+        // kalsa bile emniyet taraması isTerminated kontrolüyle onu temizler.
+        guard watchers[app.processIdentifier]?.app == app else { return }
         removeWatcher(pid: app.processIdentifier)
     }
 
