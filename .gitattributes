@@ -2,3 +2,4 @@
 # build.sh CRLF ile bozulacağı için bu zorunludur (macOS'ta derlenir).
 * text=auto eol=lf
 *.sh text eol=lf
+*.command text eol=lf

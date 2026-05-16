@@ -67,6 +67,9 @@ rm -f "$DMG"
 STAGE="$(mktemp -d)"
 ditto "$APP" "$STAGE/$APP"
 ln -s /Applications "$STAGE/Applications"
+# Çift tıklanan kurulum betiği: kopyalar + karantinayı kaldırır + açar.
+cp Resources/install.command "$STAGE/QuitLite Kur.command"
+chmod +x "$STAGE/QuitLite Kur.command"
 hdiutil create -volname "QuitLite" -srcfolder "$STAGE" -ov -format UDZO \
   -imagekey zlib-level=9 -quiet "$DMG"
 rm -rf "$STAGE"
