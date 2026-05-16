@@ -122,7 +122,15 @@ enum CoreAgent {
         let domain = "gui/\(getuid())"
         // Olası eski kaydı temizle (uygulamanın yolu değişmiş olabilir), sonra yükle.
         _ = runLaunchctl(["bootout", domain, plistURL.path])
-        let ok = runLaunchctl(["bootstrap", domain, plistURL.path])
+        // bootout asenkron tamamlanır: eski iş hâlâ etiketi serbest bırakmamışken
+        // bootstrap "service already bootstrapped" hatası verebilir. Birkaç kez
+        // kısa aralıkla dene — aksi halde kayıt sessizce başarısız oluyordu.
+        var ok = false
+        for attempt in 0..<5 {
+            ok = runLaunchctl(["bootstrap", domain, plistURL.path])
+            if ok { break }
+            if attempt < 4 { Thread.sleep(forTimeInterval: 0.4) }
+        }
         if ok {
             // Kurulu sürümü yalnızca bootstrap BAŞARILI olursa kaydet; aksi halde
             // synchronize() sürüm uyuşmazlığını görüp bir sonraki açılışta yeniden

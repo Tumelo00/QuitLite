@@ -10,11 +10,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Çekirdek kaydını eşitle. Zaten doğru kuruluysa çalışan çekirdeğe
         // dokunulmaz — gereksiz yeniden başlatma (ve bekleyen kapatmaların
-        // kaybı) önlenir. Kullanıcı "girişte başlat"ı bilerek kapattıysa
-        // (kayıt yok ama daha önce kurulmuş) ilk kurulum yapılmaz.
-        if CoreAgent.synchronize(allowFirstInstall: !Preferences.shared.didInstall) {
-            Preferences.shared.didInstall = true
-        }
+        // kaybı) önlenir. Çekirdek kurulu değilse kurar; yalnızca kullanıcı
+        // "Girişte başlat"ı bilerek kapattıysa kurmaz. Böylece uygulama silinip
+        // yeniden kurulduğunda çekirdek yine otomatik kurulur.
+        CoreAgent.synchronize(allowFirstInstall: !Preferences.shared.userDisabledAgent)
         openSettings()
     }
 

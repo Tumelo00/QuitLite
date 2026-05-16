@@ -53,7 +53,7 @@ public final class Preferences {
         static let blacklist = "blacklist"
         static let whitelist = "whitelist"
         static let didSeed = "didSeedBlacklist"
-        static let didInstall = "didInstall"
+        static let userDisabledAgent = "userDisabledAgent"
         static let showMenuBarIcon = "showMenuBarIcon"
         static let installedCoreVersion = "installedCoreVersion"
     }
@@ -103,11 +103,14 @@ public final class Preferences {
         set { defaults.set(Array(Set(newValue)).sorted(), forKey: Key.whitelist) }
     }
 
-    /// Çekirdek (LaunchAgent) en az bir kez kuruldu mu? GUI bununla, kullanıcının
-    /// "girişte başlat"ı bilerek kapatmasıyla ilk kurulumu ayırt eder.
-    public var didInstall: Bool {
-        get { defaults.bool(forKey: Key.didInstall) }
-        set { defaults.set(newValue, forKey: Key.didInstall) }
+    /// Kullanıcı "Girişte başlat"ı bilerek KAPATTI mı? GUI her açılışta çekirdeği
+    /// kurmayı dener; yalnızca bu bayrak true ise (kullanıcı açıkça kapattıysa)
+    /// kurmaz. Eski `didInstall` bayrağı, uygulama silinip yeniden kurulunca
+    /// (paylaşılan ayarlar diskte kaldığı için) takılı kalıp çekirdeğin yeniden
+    /// kurulmasını engelliyordu — bu mantık onu giderir.
+    public var userDisabledAgent: Bool {
+        get { defaults.bool(forKey: Key.userDisabledAgent) }
+        set { defaults.set(newValue, forKey: Key.userDisabledAgent) }
     }
 
     /// Çekirdek menü çubuğunda bir simge göstersin mi? Açıkken çekirdek

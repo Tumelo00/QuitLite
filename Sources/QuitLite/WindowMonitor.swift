@@ -103,6 +103,13 @@ final class WindowMonitor {
     /// izlenen uygulamaların pencere sayısını yeniden değerlendirir.
     @objc private func sweep() {
         sweepCount &+= 1
+        // Yeni başlatılan uygulamaları keşfet. NSWorkspace bildirimleri bunu
+        // olağan durumda anında yapar; ancak hafif modda (NSApplication yok)
+        // bildirimler gecikebildiği/kaçabildiği için tarama da güvenli bir
+        // yedektir. addWatcher zaten izlenen/uygunsuz pid'leri eler (no-op).
+        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+            addWatcher(for: app)
+        }
         // Olağan taramalarda yalnızca penceresi olmuş (= kapatılabilir) uygulamalar
         // AX ile taranır; pencere açmamış uygulamalar zaten kapatılamaz. Ancak her
         // 6 taramada bir (~60 sn) onlar da taranır: bir uygulamanın ilk penceresi

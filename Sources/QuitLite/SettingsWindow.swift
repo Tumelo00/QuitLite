@@ -17,6 +17,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate,
     private let listHintLabel = NSTextField(labelWithString: "")
     private var allAppsRadio: NSButton!
     private var whitelistRadio: NSButton!
+    private var agentCheckbox: NSButton!
     private var enabledCheckbox: NSButton!
     private var menuBarCheckbox: NSButton!
     private var statusTimer: Timer?
@@ -120,8 +121,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate,
         // --- Genel ---
         stack.addArrangedSubview(sectionHeader("Genel"))
 
-        let agentCheckbox = checkbox("Girişte başlat ve arka planda çalış",
-                                     #selector(toggleAgent(_:)), CoreAgent.isRegistered)
+        agentCheckbox = checkbox("Girişte başlat ve arka planda çalış",
+                                 #selector(toggleAgent(_:)), CoreAgent.isRegistered)
         // /Applications dışından çekirdek kurulamaz; seçeneği devre dışı bırak.
         agentCheckbox.isEnabled = CoreAgent.isInApplicationsFolder
         stack.addArrangedSubview(agentCheckbox)
@@ -269,6 +270,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate,
         // durumu doğrudan sorgulanabilir; dolaylı/bayatlayabilen bir ayara gerek yok.
         let registered = CoreAgent.isRegistered
         let trusted = AXIsProcessTrusted()
+        // Onay kutularını gerçek duruma eşitle (durum dışarıdan değişmiş olabilir).
+        agentCheckbox.state = registered ? .on : .off
+        enabledCheckbox.isEnabled = registered
+        menuBarCheckbox.isEnabled = registered
         let core = registered ? "kurulu" : "kurulu değil"
         let ax = trusted ? "verildi ✓" : "GEREKLİ — izin verin"
         statusLabel.stringValue = "QuitLite \(version)   ·   Arka plan çekirdeği: \(core)"
@@ -292,10 +297,15 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate,
 
     @objc private func toggleAgent(_ sender: NSButton) {
         if sender.state == .on {
+            // Kullanıcı yeniden açtı: "bilerek kapattı" işaretini temizle.
+            prefs.userDisabledAgent = false
             CoreAgent.register()
         } else {
+            // Kullanıcı bilerek kapattı: uygulama yeniden açılınca otomatik kurma.
+            prefs.userDisabledAgent = true
             CoreAgent.unregister()
         }
+        prefs.flush()
         let registered = CoreAgent.isRegistered
         sender.state = registered ? .on : .off
         enabledCheckbox.isEnabled = registered
