@@ -17,6 +17,13 @@ mkdir -p "$APP/Contents/MacOS"
 cp "$BIN/QuitLite"      "$APP/Contents/MacOS/QuitLite"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 
+echo "→ Uygulama ikonu oluşturuluyor…"
+ICONSTAGE="$(mktemp -d)"
+swift Tools/makeicon.swift "$ICONSTAGE/AppIcon.iconset"
+mkdir -p "$APP/Contents/Resources"
+iconutil -c icns "$ICONSTAGE/AppIcon.iconset" -o "$APP/Contents/Resources/AppIcon.icns"
+rm -rf "$ICONSTAGE"
+
 echo "→ Semboller temizleniyor…"
 strip -x "$APP/Contents/MacOS/QuitLite"
 

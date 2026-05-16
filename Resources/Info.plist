@@ -8,6 +8,8 @@
     <string>QuitLite</string>
     <key>CFBundleExecutable</key>
     <string>QuitLite</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>com.tumerustunel.QuitLite</string>
     <key>CFBundleInfoDictionaryVersion</key>
