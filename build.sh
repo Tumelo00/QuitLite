@@ -53,8 +53,16 @@ fi
 echo "→ DMG oluşturuluyor…"
 DMG="QuitLite.dmg"
 rm -f "$DMG"
-hdiutil create -volname "QuitLite" -srcfolder "$APP" -ov -format UDZO \
+# DMG'yi bir hazırlık klasöründen oluştur: .app'in yanına /Applications
+# kısayolu koy ki kullanıcı DMG'yi açınca uygulamayı doğrudan oraya
+# sürükleyebilsin (aksi halde DMG'de yalnızca .app görünür, sürüklenecek
+# hedef olmaz).
+STAGE="$(mktemp -d)"
+ditto "$APP" "$STAGE/$APP"
+ln -s /Applications "$STAGE/Applications"
+hdiutil create -volname "QuitLite" -srcfolder "$STAGE" -ov -format UDZO \
   -imagekey zlib-level=9 -quiet "$DMG"
+rm -rf "$STAGE"
 
 echo "✓ Hazır:"
 echo "  $(pwd)/$APP   ($(du -sh "$APP" | cut -f1))"
