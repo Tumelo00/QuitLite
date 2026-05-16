@@ -60,6 +60,14 @@ jobs:
         # olmayabilir. QUITLITE_SIGN_ID ayarlıysa o kimlikle, değilse ad-hoc imzalar.
         run: bash build.sh
 
+      - name: İmzayı doğrula
+        # İmza bütünlüğünü doğrular ve hangi sertifikayla imzalandığını yazar.
+        # Bozuk imzalı bir DMG'nin yayımlanmasını engeller, teşhise yardımcı olur.
+        run: |
+          codesign --verify --strict --verbose=2 QuitLite.app
+          echo "--- imza özeti ---"
+          codesign -dvv QuitLite.app 2>&1 || true
+
       - name: DMG'yi artifact olarak yükle
         uses: actions/upload-artifact@v4
         with:
