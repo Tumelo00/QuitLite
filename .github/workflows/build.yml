@@ -60,11 +60,15 @@ jobs:
         # olmayabilir. QUITLITE_SIGN_ID ayarlıysa o kimlikle, değilse ad-hoc imzalar.
         run: bash build.sh
 
-      - name: İmzayı doğrula
-        # İmza bütünlüğünü doğrular ve hangi sertifikayla imzalandığını yazar.
-        # Bozuk imzalı bir DMG'nin yayımlanmasını engeller, teşhise yardımcı olur.
+      - name: İmza ve mimariyi doğrula
+        # İmza bütünlüğünü ve binary'nin universal (arm64 + x86_64) olduğunu
+        # doğrular. Tek mimarili bir DMG'nin yayımlanmasını engeller.
         run: |
           codesign --verify --strict --verbose=2 QuitLite.app
+          BIN=QuitLite.app/Contents/MacOS/QuitLite
+          echo "--- mimari: $(lipo -archs "$BIN") ---"
+          lipo -archs "$BIN" | grep -qw x86_64 || { echo "::error::x86_64 dilimi eksik"; exit 1; }
+          lipo -archs "$BIN" | grep -qw arm64  || { echo "::error::arm64 dilimi eksik"; exit 1; }
           echo "--- imza özeti ---"
           codesign -dvv QuitLite.app 2>&1 || true
 

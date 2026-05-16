@@ -46,7 +46,8 @@ için tek bir Erişilebilirlik (TCC) kimliği paylaşır.
 ./build.sh
 ```
 
-Çıktı: `QuitLite.app` ve dağıtım için tek bir `QuitLite.dmg`.
+Çıktı: `QuitLite.app` ve dağıtım için tek bir `QuitLite.dmg`. Binary
+**universal**'dir (arm64 + x86_64) — hem Apple Silicon hem Intel Mac'lerde çalışır.
 Gereksinim: Swift 5.9+ ve Xcode komut satırı araçları.
 
 ## Kurulum

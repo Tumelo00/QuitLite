@@ -6,9 +6,12 @@ set -euo pipefail
 cd "$(dirname "$0")"
 CONFIG="release"
 
-echo "→ Derleniyor ($CONFIG)…"
-swift build -c "$CONFIG"
-BIN="$(swift build -c "$CONFIG" --show-bin-path)"
+# Universal binary (arm64 + x86_64): hem Apple Silicon hem Intel Mac'lerde
+# çalışır. Tek mimari derlenirse diğer işlemcili Mac'ler uygulamayı hiç açamaz.
+echo "→ Derleniyor ($CONFIG, universal: arm64 + x86_64)…"
+ARCHS=(--arch arm64 --arch x86_64)
+swift build -c "$CONFIG" "${ARCHS[@]}"
+BIN="$(swift build -c "$CONFIG" "${ARCHS[@]}" --show-bin-path)"
 
 APP="QuitLite.app"
 echo "→ $APP paketleniyor…"
