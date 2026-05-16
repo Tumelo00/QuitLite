@@ -27,9 +27,16 @@ final class CoreMenuController: NSObject, NSApplicationDelegate {
         statusItem = item
     }
 
-    /// Ayar penceresini açar — aynı .app paketi argümansız çalıştırılınca GUI moduna girer.
+    /// Ayar penceresini açar. .app zaten (çekirdek olarak) çalıştığından sıradan
+    /// `NSWorkspace.open` YENİ bir süreç başlatmaz — yalnızca penceresiz çekirdeği
+    /// etkinleştirir ve hiçbir şey görünmez. `createsNewApplicationInstance` ile
+    /// ayrı bir süreç başlatılır; argümansız açıldığı için ayar penceresi moduna girer.
     @objc private func openSettings() {
-        NSWorkspace.shared.open(Bundle.main.bundleURL)
+        let config = NSWorkspace.OpenConfiguration()
+        config.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL,
+                                           configuration: config,
+                                           completionHandler: nil)
     }
 
     /// QuitLite'ı tamamen durdurur. LaunchAgent kaydı kaldırılmazsa KeepAlive=true
