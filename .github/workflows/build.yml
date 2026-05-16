@@ -1,0 +1,39 @@
+name: Build DMG
+
+# main'e her push'ta (ve elle tetiklemede) QuitLite'ı macOS sunucusunda derler,
+# QuitLite.dmg'yi hem iş çıktısı (artifact) hem de "latest" sürümü olarak yayımlar.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Depoyu çek
+        uses: actions/checkout@v4
+
+      - name: QuitLite'ı derle
+        # build.sh'ı bash ile çağır: Windows'tan commit edilince çalıştırma biti
+        # olmayabilir. CI'da imzalama kimliği yoktur → ad-hoc imzaya düşer.
+        run: bash build.sh
+
+      - name: DMG'yi artifact olarak yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuitLite-dmg
+          path: QuitLite.dmg
+          if-no-files-found: error
+
+      - name: "latest" sürümünü yayımla
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest QuitLite.dmg \
+            --title "QuitLite — en son derleme" \
+            --notes "main dalindan otomatik derlendi. QuitLite.dmg'yi indirin."

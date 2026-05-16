@@ -50,6 +50,9 @@ Gereksinim: Swift 5.9+ ve Xcode komut satırı araçları.
 
 ## Kurulum
 
+En son `QuitLite.dmg`, deponun **Releases → "latest"** sayfasından indirilebilir;
+her `main` push'unda GitHub Actions tarafından macOS üzerinde otomatik derlenir.
+
 1. `QuitLite.dmg`'yi açın, `QuitLite.app`'i `/Applications`'a sürükleyin.
 2. İlk açılışta Gatekeeper uyarısı çıkarsa: sağ tık → **Aç**, ya da
    `xattr -dr com.apple.quarantine /Applications/QuitLite.app`.
