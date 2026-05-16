@@ -54,26 +54,22 @@ Gereksinim: Swift 5.9+ ve Xcode komut satırı araçları.
 En son `QuitLite.dmg`, deponun **Releases → "latest"** sayfasından indirilebilir;
 her `main` push'unda GitHub Actions tarafından macOS üzerinde otomatik derlenir.
 
-1. `QuitLite.dmg`'yi açın.
-2. İçindeki **`QuitLite Kur.command`** dosyasına **çift tıklayın**. Bu betik
-   QuitLite'ı `/Applications`'a kopyalar, Gatekeeper karantina etiketini
-   kaldırır ve uygulamayı açar — Terminal'e elle komut yazmanız gerekmez.
-   - İnternetten indirilen bir betik olduğu için bir kez "Aç" onayı çıkabilir;
-     **Aç** deyin.
+1. `QuitLite.dmg`'yi açın, `QuitLite.app`'i DMG'deki **`Applications`**
+   kısayoluna sürükleyin. QuitLite'ı `/Applications` dışından çalıştırmayın —
+   arka plan çekirdeği yalnızca oradan düzgün kurulur.
+2. `/Applications/QuitLite.app`'i açın. QuitLite **notarize edilmediği** için
+   (notarization ücretli bir Apple Developer hesabı gerektirir) macOS ilk
+   açılışta engeller. Bir kez aşmanız gerekir:
+   - **macOS 15 (Sequoia):** Sistem Ayarları → **Gizlilik ve Güvenlik** →
+     aşağı kaydırın → "QuitLite engellendi" satırında **Yine de Aç** → parola
+     veya Touch ID. (Apple'ın onayladığı yol; Terminal gerekmez.)
+   - **macOS 14 ve altı:** `QuitLite.app`'e sağ tık → **Aç** → **Aç**.
+   - **Terminal'le (tüm sürümler, en kesini):**
+     `xattr -dr com.apple.quarantine /Applications/QuitLite.app`
+   Bu yalnızca **ilk sefer** gerekir; sonra QuitLite normal açılır.
 3. Sistem Ayarları → Gizlilik ve Güvenlik → **Erişilebilirlik** altında
    **QuitLite**'a izin verin. Listede görünmüyorsa **+** düğmesiyle
    `/Applications/QuitLite.app`'i ekleyip anahtarını açın.
-
-QuitLite **notarize edilmediği** için (bu, ücretli Apple Developer hesabı
-gerektirir) macOS indirilen uygulamayı doğrudan açmaz; yukarıdaki kurulum
-betiği bu engeli sizin için aşar. Betik herhangi bir Mac'te aynı şekilde
-çalışır.
-
-**Betik çalışmazsa, elle kurulum:** `QuitLite.app`'i DMG'den `/Applications`'a
-sürükleyin, sonra Terminal'de:
-`xattr -dr com.apple.quarantine /Applications/QuitLite.app` — ardından açın.
-QuitLite'ı `/Applications` dışından çalıştırmayın; arka plan çekirdeği yalnızca
-oradan düzgün kurulur.
 
 Ayarları sonradan değiştirmek için yine `QuitLite.app`'i açın.
 
