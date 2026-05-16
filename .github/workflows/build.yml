@@ -17,9 +17,38 @@ jobs:
       - name: Depoyu çek
         uses: actions/checkout@v4
 
+      - name: İmzalama sertifikasını içe aktar
+        # Kendinden imzalı sertifikayı geçici bir anahtar zincirine yükler.
+        # Sertifika sabit olduğu için imza her derlemede aynı kalır → Erişilebilirlik
+        # (TCC) izni korunur. Secret yoksa veya içe aktarma başarısız olursa adım
+        # yine de başarıyla biter; build.sh ad-hoc imzaya düşer.
+        env:
+          CERT_P12: ${{ secrets.SIGNING_CERTIFICATE_P12 }}
+          CERT_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -z "$CERT_P12" ]; then
+            echo "::warning::Sertifika secret'ı yok; ad-hoc imzalanacak."
+            exit 0
+          fi
+          KEYCHAIN="$RUNNER_TEMP/quitlite-signing.keychain-db"
+          KPWD="$(openssl rand -base64 18)"
+          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          if security create-keychain -p "$KPWD" "$KEYCHAIN" \
+             && security set-keychain-settings -lut 21600 "$KEYCHAIN" \
+             && security unlock-keychain -p "$KPWD" "$KEYCHAIN" \
+             && security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$CERT_PASSWORD" -T /usr/bin/codesign \
+             && security set-key-partition-list -S apple-tool:,apple: -s -k "$KPWD" "$KEYCHAIN" \
+             && security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"'); then
+            echo "QUITLITE_SIGN_ID=QuitLite Self-Signed" >> "$GITHUB_ENV"
+            echo "::notice::Kendinden imzalı sertifika içe aktarıldı."
+          else
+            echo "::warning::Sertifika içe aktarılamadı; ad-hoc imzalanacak."
+          fi
+          rm -f "$RUNNER_TEMP/cert.p12"
+
       - name: QuitLite'ı derle
         # build.sh'ı bash ile çağır: Windows'tan commit edilince çalıştırma biti
-        # olmayabilir. CI'da imzalama kimliği yoktur → ad-hoc imzaya düşer.
+        # olmayabilir. QUITLITE_SIGN_ID ayarlıysa o kimlikle, değilse ad-hoc imzalar.
         run: bash build.sh
 
       - name: DMG'yi artifact olarak yükle

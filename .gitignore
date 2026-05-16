@@ -1,6 +1,8 @@
 .build/
 *.app
 *.dmg
+*.p12
+*.pem
 .DS_Store
 *.xcuserdatad
 Package.resolved
