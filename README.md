@@ -1,136 +1,91 @@
 # QuitLite
 
-Son penceresi kapanan macOS uygulamalarını otomatik olarak kapatan, aşırı hafif
-bir araç. "Last Window Quits" benzeri; arka plan çekirdeği yalnızca **~2.3 MB RAM**
-kullanır. Kurulu boyut ve DMG birkaç yüz KB'dir (uygulama ikonu dahil; binary
-tek başına ~180 KB).
+**Close an app's last window — QuitLite quits the app for you. In about 3 MB of RAM.**
 
-## Mimari
+![macOS 13+](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
+![Universal](https://img.shields.io/badge/Universal-Apple%20Silicon%20%2B%20Intel-555555)
+![License: MIT](https://img.shields.io/badge/License-MIT-green)
+[![Download](https://img.shields.io/badge/%E2%AC%87%20Download-latest-2ea44f)](https://github.com/Tumelo00/QuitLite/releases/latest)
 
-Tek bir binary, iki modda çalışır:
+*Bu sayfayı [Türkçe](README.tr.md) okuyun.*
 
-- **Çekirdek modu** (`QuitLite --core`) — `NSApplication` yok, menü çubuğu yok,
-  dock yok, ikon yok. Tüm izleme ve kapatma işini yapar. **~2.3 MB**, sürekli
-  çalışır. `launchd` yönetir: girişte başlar, çökerse yeniden başlatılır,
-  `ProcessType=Adaptive` ile boştayken düşük öncelikli, iş çıkınca yükseltilir.
-- **Ayar penceresi modu** (varsayılan) — yalnızca `QuitLite.app`'i açınca çalışır;
-  pencere kapanınca süreç sonlanır. Arka planda iz bırakmaz.
+![QuitLite settings](images/settings.png)
 
-`NSApplication` (menü çubuğu/GUI altyapısı) ~10 MB taban maliyeti getirir;
-çekirdek bunu hiç yüklemediği için ~2.3 MB'de kalır. İki mod aynı binary olduğu
-için tek bir Erişilebilirlik (TCC) kimliği paylaşır.
+QuitLite is an ultra-lightweight macOS background utility. When you close the
+last window of an app, QuitLite quietly quits that app — so nothing keeps
+running in the background with no window on screen.
 
-İki süreç ayrı bir IPC katmanı olmadan, paylaşılan bir `UserDefaults` suite
-üzerinden haberleşir.
+It is built like embedded firmware: tiny, silent, and stable for weeks at a
+time. No dock icon, no window of its own, no noise — just a background helper
+that uses around **3 MB of RAM**.
 
-## Enerji optimizasyonu (UI kapalıyken)
+## Features
 
-- İzin yoklaması: izin verilene kadar 3 sn, verildikten sonra 300 sn.
-- Emniyet taraması: 10 sn, geniş tolerans ile macOS uyanmalarına denk getirilir.
-- Asıl algılama olay tabanlıdır (AX observer + NSWorkspace) — sistem boştayken
-  ek uyanma olmaz.
+- **Automatic quit** — when an app's last window closes, QuitLite quits the app.
+- **Blacklist or whitelist** — manage every app except the ones you exclude, or
+  only the ones you pick.
+- **Adjustable delay** — set a 0–30 second grace period before an app is quit.
+- **Reliable detection** — works correctly with apps that only hide their window
+  when you close it, and treats minimized windows as still open.
+- **Accidental-quit protection** — a delay plus double verification prevents
+  quitting an app during normal window or desktop transitions.
+- **Optional menu bar icon** — reach settings or quit QuitLite from the menu bar.
+- **Universal** — runs natively on both Apple Silicon and Intel Macs.
+- **Private & offline** — no telemetry, no analytics, no network access. Ever.
 
-## Özellikler
+## Light by design
 
-- Accessibility API (`AXObserver`) tabanlı pencere takibi.
-- Kara liste / izin listesi modları.
-- Ayarlanabilir kapatma gecikmesi (0–30 sn).
-- Girişte otomatik başlama (`~/Library/LaunchAgents` + `launchctl`).
-- Yanlış kapatmaya karşı koruma: gecikme + çift yeniden doğrulama + emniyet taraması.
-- İsteğe bağlı menü çubuğu simgesi (ayarları açma / QuitLite'tan çıkma için).
-  Açıkken çekirdek `NSApplication` ile çalışır (~10 MB); kapalıyken hafif moddadır.
+![QuitLite memory usage in Activity Monitor](images/activity-monitor.png)
 
-## Derleme
+QuitLite's background helper idles at roughly **3 MB of RAM** with near-zero
+CPU. It is event-driven rather than constantly polling, so it barely wakes your
+Mac and won't dent your battery — even running 24/7.
+
+## Installation
+
+1. Download `QuitLite.dmg` from the
+   [latest release](https://github.com/Tumelo00/QuitLite/releases/latest).
+2. Open the DMG and drag **QuitLite** onto the **Applications** shortcut.
+3. Open `QuitLite` from your Applications folder. QuitLite is distributed
+   without a paid Apple Developer certificate, so macOS blocks it the first
+   time — you only need to allow it once:
+   - **macOS 15+:** System Settings → Privacy & Security → scroll down →
+     "QuitLite blocked" → **Open Anyway**.
+   - **Older macOS:** right-click QuitLite → **Open** → **Open**.
+   - The DMG also includes `Open_If_macOS_Blocks.command`, a transparent helper
+     script for this step.
+4. Grant **Accessibility** permission when prompted (System Settings → Privacy &
+   Security → Accessibility) — QuitLite needs it to detect when windows close.
+
+Each release ships a `QuitLite.dmg.sha256` checksum so you can verify the
+download: `shasum -a 256 -c QuitLite.dmg.sha256`.
+
+## Usage
+
+Open `QuitLite` any time to change settings: choose blacklist or whitelist mode,
+pick apps, set the quit delay, or toggle the menu bar icon. Close the window and
+QuitLite keeps working silently in the background. It starts automatically at
+login.
+
+## Uninstall
+
+Open QuitLite and click **"QuitLite'ı Bilgisayardan Kaldır"** (Remove QuitLite
+from this Mac). It cleanly removes everything — the background helper, the login
+item, all settings and caches — and moves the app to the Trash. No leftovers.
+
+## Requirements
+
+macOS 13 (Ventura) or later. Apple Silicon or Intel.
+
+## Build from source
 
 ```bash
 ./build.sh
 ```
 
-Çıktı: `QuitLite.app` ve dağıtım için tek bir `QuitLite.dmg`. Binary
-**universal**'dir (arm64 + x86_64) — hem Apple Silicon hem Intel Mac'lerde çalışır.
-Gereksinim: Swift 5.9+ ve Xcode komut satırı araçları.
+Produces `QuitLite.app` and a distributable, universal `QuitLite.dmg`. Requires
+Swift 5.9+ and the Xcode command-line tools.
 
-## Kurulum
+## License
 
-En son `QuitLite.dmg`, deponun **Releases → "latest"** sayfasından indirilebilir;
-her `main` push'unda GitHub Actions tarafından macOS üzerinde otomatik derlenir.
-Her yayın, DMG'nin yanında bir `QuitLite.dmg.sha256` dosyası içerir.
-
-İndirdiğiniz DMG'nin bütünlüğünü doğrulamak isterseniz, `QuitLite.dmg.sha256`
-dosyasını DMG ile **aynı klasöre** koyup şunu çalıştırın — `OK` görmelisiniz:
-
-```bash
-shasum -a 256 -c QuitLite.dmg.sha256
-```
-
-DMG'yi açtığınızda içindeki **`Önce Beni Aç.html`** dosyası, aşağıdaki adımları
-ve kopyalanabilir komutu görsel bir sayfa olarak gösterir. DMG ayrıca, macOS
-engellerse uygulamayı açmaya yardımcı **`Open_If_macOS_Blocks.command`** betiğini
-de içerir (bkz. aşağıdaki adım 2).
-
-1. `QuitLite.dmg`'yi açın, `QuitLite.app`'i DMG'deki **`Applications`**
-   kısayoluna sürükleyin. QuitLite'ı `/Applications` dışından çalıştırmayın —
-   arka plan çekirdeği yalnızca oradan düzgün kurulur.
-2. `/Applications/QuitLite.app`'i açın. QuitLite **notarize edilmediği** için
-   (notarization ücretli bir Apple Developer hesabı gerektirir) macOS ilk
-   açılışta engeller. Bir kez aşmanız gerekir:
-   - **macOS 15 (Sequoia):** Sistem Ayarları → **Gizlilik ve Güvenlik** →
-     aşağı kaydırın → "QuitLite engellendi" satırında **Yine de Aç** → parola
-     veya Touch ID. (Apple'ın onayladığı yol; Terminal gerekmez.)
-   - **macOS 14 ve altı:** `QuitLite.app`'e sağ tık → **Aç** → **Aç**.
-   - **Yardımcı betikle (Terminal bilmeyenler için):** DMG'deki
-     **`Open_If_macOS_Blocks.command`** dosyasına çift tıklayın. Betik, ne
-     yapacağını açıkça yazar, onayınızı bekler ve yalnızca QuitLite.app'in
-     karantina özniteliğini kaldırır — sudo gerektirmez, Gatekeeper'ı genel
-     olarak kapatmaz, başka dosyaya dokunmaz. Betiğin kendisi de notarize
-     edilmediği için ilk açışta sağ tık → **Aç** gerekebilir.
-   - **Terminal'le (tüm sürümler, en kesini):**
-     `xattr -dr com.apple.quarantine /Applications/QuitLite.app`
-   Bu yalnızca **ilk sefer** gerekir; sonra QuitLite normal açılır.
-3. Sistem Ayarları → Gizlilik ve Güvenlik → **Erişilebilirlik** altında
-   **QuitLite**'a izin verin. Listede görünmüyorsa **+** düğmesiyle
-   `/Applications/QuitLite.app`'i ekleyip anahtarını açın.
-
-Ayarları sonradan değiştirmek için yine `QuitLite.app`'i açın.
-
-## Kaldırma
-
-1. `QuitLite.app`'i açın, en alttaki **QuitLite'tan Çık** düğmesine basın —
-   bu, arka plan çekirdeğini durdurur ve girişte otomatik başlatmayı kaldırır.
-2. `QuitLite.app`'i Çöp'e taşıyın.
-
-"QuitLite'tan Çık" demeden uygulamayı silerseniz `~/Library/LaunchAgents/`
-altında `com.tumerustunel.QuitLite.Core.plist` artığı kalır; şu komutla
-temizleyebilirsiniz:
-`launchctl bootout gui/$(id -u)/com.tumerustunel.QuitLite.Core 2>/dev/null;
-rm -f ~/Library/LaunchAgents/com.tumerustunel.QuitLite.Core.plist`
-
-## Notlar
-
-- Accessibility API gerektirdiği için App Store dışında dağıtılır.
-- **Kalıcı Erişilebilirlik izni — kendinden imzalı sertifika:** Ad-hoc imza her
-  derlemede kod karmasını (cdhash) değiştirir; TCC izni koda bağlı olduğu için
-  her derlemede izni yeniden vermeniz gerekir. Bir kez kendinden imzalı sertifika
-  oluşturursanız imza sabitlenir → izni bir kez verir, her derlemede korursunuz.
-
-  Sertifikayı bir kez oluşturun:
-  1. **Anahtar Zinciri Erişimi**'ni açın.
-  2. Menü çubuğu → **Anahtar Zinciri Erişimi → Sertifika Yardımcısı →
-     Sertifika Oluştur…**
-  3. **Ad:** `QuitLite Self-Signed` · **Kimlik Türü:** Kendinden İmzalı Kök ·
-     **Sertifika Türü:** Kod İmzalama → **Oluştur**.
-
-  Sertifika ve özel anahtarı **giriş (login) anahtar zincirinde** bulunmalıdır;
-  `security find-identity -p codesigning` yalnızca özel anahtarına erişilebilen
-  kimlikleri listeler. Sertifikayı dışa aktarıp başka makineye taşırsanız özel
-  anahtarı da (`.p12`) içermesine dikkat edin, yoksa imzalama ad-hoc'a düşer.
-
-  `build.sh` artık adında "QuitLite" geçen kod imzalama kimliğini otomatik bulup
-  onunla imzalar; bulamazsa ad-hoc imzaya düşer. Başka bir kimlik için:
-  `QUITLITE_SIGN_ID="…" ./build.sh`.
-- Varsayılan kara liste, pencere kapansa da arka planda kalması gereken
-  uygulamaları (VPN'ler, LuLu, Amphetamine, Finder vb.) içerir.
-
-## Lisans
-
-MIT
+[MIT](LICENSE)
