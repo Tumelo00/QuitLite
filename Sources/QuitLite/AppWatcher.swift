@@ -84,16 +84,16 @@ final class AppWatcher {
     }
 
     /// Uygulamanın o anki gerçek (uygulamayı ayakta tutan) pencerelerini döndürür.
-    /// Kayan palet/panel gibi yardımcı pencereler sayılmaz. Minimize edilmiş
-    /// pencereler "açık" sayılır.
+    /// Kayan palet/panel gibi yardımcı pencereler sayılmaz.
     ///
     /// Discord/Slack/VS Code gibi Electron uygulamaları son pencere kapatılınca
     /// pencereyi YOK ETMEZ — `orderOut` ile gizler. Gizli pencere AX listesinde
-    /// "standart pencere" olarak kalır; AX tek başına yetmez. Çözüm: AX standart
-    /// pencereleri varsa ve hiçbiri minimize değilse, pencere sunucusuna sorulur —
-    /// pencerelerden HİÇBİRİ bir Space'te değilse (hepsi gizli) uygulama
-    /// penceresiz sayılır. Başka masaüstündeki / tam ekran pencereler bir
-    /// Space'te olduğundan "açık" sayılır (yanlış kapatma önlenir).
+    /// "standart pencere" olarak kalır; AX tek başına yetmez. Karar şöyle verilir:
+    ///  • Hiç AX standart penceresi yok → penceresiz.
+    ///  • Ekranda görünür pencere var → açık.
+    ///  • Görünür yok ama minimize VEYA tam ekran pencere var → açık (tam ekran
+    ///    pencere arka plandaki bir Space'tedir; minimize pencere Dock'tadır).
+    ///  • Görünür/minimize/tam ekran hiçbiri yok → hepsi gizli → penceresiz.
     ///
     /// AX çağrısı başarısız olursa (uygulama yanıt vermiyor, izin yok vb.) `nil`
     /// döner — bu "durum bilinmiyor" demektir ve "0 pencere" ile karıştırılmamalıdır.
@@ -103,32 +103,45 @@ final class AppWatcher {
         guard AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value) == .success,
               let windows = value as? [AXUIElement] else { return nil }
         var result: [AXUIElement] = []
-        var anyMinimized = false
         for window in windows {
             // Herhangi bir pencerenin alt-rolü SORGULANAMAZSA (örn. izin tam bu
             // sırada geri alındı) durum belirsizdir → nil dön. Aksi halde sorgu
             // hataları "0 standart pencere" sanılıp uygulama yanlışlıkla kapatılır.
             guard let standard = isStandardWindow(window) else { return nil }
-            guard standard else { continue }
-            result.append(window)
-            // Tek bir minimize pencere bile uygulamayı "açık" yapar; ilkini
-            // bulunca AX'e sormayı bırak.
-            if !anyMinimized, isMinimized(window) { anyMinimized = true }
+            if standard { result.append(window) }
         }
-        // AX'te standart pencere var ama hiçbiri minimize değil → bunların hepsi
-        // gizli (Discord gibi) olabilir. Pencere sunucusuna sor: hiçbiri bir
-        // Space'te değilse uygulama gerçekten penceresizdir.
-        if !result.isEmpty, !anyMinimized, !WindowPresence.appHasLiveWindow(pid: pid) {
-            return []
+        // Hiç standart pencere yok → penceresiz.
+        if result.isEmpty { return result }
+        // Ekranda görünür pencere varsa uygulama kesinlikle açıktır.
+        if WindowPresence.hasOnScreenWindow(pid: pid) { return result }
+        // Görünür pencere yok: pencereler ya gizli (Discord — orderOut), ya
+        // minimize, ya da arka plandaki bir Space'te tam ekran olabilir.
+        // Minimize/tam ekran pencere uygulamayı "açık" tutar; gizli olan tutmaz.
+        // (AX sorguları Space'ten bağımsız çalışır — arka plan penceresi de okunur.)
+        for window in result {
+            if isMinimized(window) || isFullScreen(window) { return result }
         }
-        return result
+        // Standart pencere var ama hiçbiri görünür/minimize/tam ekran değil →
+        // hepsi gizli (orderOut) → uygulama gerçekten penceresizdir.
+        return []
     }
 
-    /// Pencere minimize mi? AX hatasında `false` döner — bu güvenli yöndür:
-    /// pencere yine de listede sayılır, uygulama yanlışlıkla kapatılmaz.
+    /// Pencere minimize mi? AX hatasında `false` döner — güvenli yön: emin
+    /// olunmayan pencere "minimize değil" sayılır, karar görünürlüğe bırakılır.
     private func isMinimized(_ window: AXUIElement) -> Bool {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString,
+                                            &value) == .success else { return false }
+        return (value as? Bool) ?? false
+    }
+
+    /// Pencere macOS tam ekran modunda mı? Tam ekran bir pencere kendi Space'ine
+    /// taşınır; kullanıcı başka masaüstüne geçince "ekranda görünmez" ama
+    /// kapatılmamalıdır. `AXFullScreen` standart bir AX penceresi özniteliğidir.
+    /// AX hatasında `false` döner.
+    private func isFullScreen(_ window: AXUIElement) -> Bool {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, "AXFullScreen" as CFString,
                                             &value) == .success else { return false }
         return (value as? Bool) ?? false
     }
@@ -248,51 +261,35 @@ private func axObserverCallback(_ observer: AXObserver,
     watcher.handleNotification()
 }
 
-/// "Bu uygulamanın gerçekten var olan (bir Space'te bulunan) penceresi var mı?"
-///
-/// Discord gibi uygulamalar son pencere kapatılınca pencereyi `orderOut` ile
-/// gizler — gizli pencere HİÇBİR Space'te değildir. Başka masaüstündeki ya da
-/// arka planda tam ekran pencere ise bir Space'tedir. Bu ayrım, kapatılması
-/// gereken uygulamayı (gizli) kapatılmaması gerekenden (başka Space) ayırır.
+/// Ekranda görünür (layer 0) penceresi olan uygulamaların pid kümesi.
 ///
 /// `CGWindowListCopyWindowInfo` sistem genelinde pencere bilgisi tahsis eden
 /// pahalı bir çağrıdır; emniyet taraması her pencereli uygulama için sorar.
-/// Sistem pencere listesi 0,5 sn önbelleğe alınır: tüm tarama turu tek anlık
-/// görüntüyü paylaşır, recheck (1 sn sonra) süre dolduğu için taze veri alır.
-/// Yalnızca ana thread'den erişilir — kilit gerekmez.
+/// Sonuç 0,5 sn önbelleğe alınır: tüm tarama turu tek anlık görüntüyü paylaşır,
+/// recheck (1 sn sonra) süre dolduğu için taze veri alır. Yalnızca ana
+/// thread'den erişilir — kilit gerekmez.
 private enum WindowPresence {
-    private static var windowsByPID: [pid_t: [(id: CGWindowID, onScreen: Bool)]] = [:]
+    private static var pids: Set<pid_t> = []
     private static var capturedAt: TimeInterval = -1
 
-    /// Uygulamanın bir Space'te (görünür / başka masaüstü / tam ekran) penceresi
-    /// var mı? Tüm pencereleri gizliyse (orderOut, Space'siz) `false`.
-    static func appHasLiveWindow(pid: pid_t) -> Bool {
+    /// Bu uygulamanın O AN ekranda görünen (layer 0) bir penceresi var mı?
+    static func hasOnScreenWindow(pid: pid_t) -> Bool {
         let now = ProcessInfo.processInfo.systemUptime
         if capturedAt < 0 || now - capturedAt > 0.5 {
             capturedAt = now
-            windowsByPID = capture()
+            pids = capture()
         }
-        guard let windows = windowsByPID[pid], !windows.isEmpty else { return false }
-        // CGS Space sorgusu: pencereler kaç Space'te? >0 ise gerçek pencere var.
-        if let spaceCount = WindowSpaces.spaceCount(ofWindowIDs: windows.map(\.id)) {
-            return spaceCount > 0
-        }
-        // CGS bu macOS'ta yok → güvenli geri-düşüş: yalnızca ekranda görünür
-        // pencereye bak (eski davranış — tam ekran/başka-Space kenar durumu
-        // kalır ama Discord düzeltmesi yine çalışır).
-        return windows.contains { $0.onScreen }
+        return pids.contains(pid)
     }
 
-    private static func capture() -> [pid_t: [(id: CGWindowID, onScreen: Bool)]] {
-        guard let list = CGWindowListCopyWindowInfo([], kCGNullWindowID)
-                as? [[String: Any]] else { return [:] }
-        var result: [pid_t: [(id: CGWindowID, onScreen: Bool)]] = [:]
+    private static func capture() -> Set<pid_t> {
+        guard let list = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)
+                as? [[String: Any]] else { return [] }
+        var result: Set<pid_t> = []
         for window in list {
             guard (window[kCGWindowLayer as String] as? Int) == 0,
-                  let owner = window[kCGWindowOwnerPID as String] as? Int,
-                  let number = window[kCGWindowNumber as String] as? Int else { continue }
-            let onScreen = (window[kCGWindowIsOnscreen as String] as? Bool) ?? false
-            result[pid_t(owner), default: []].append((CGWindowID(number), onScreen))
+                  let owner = window[kCGWindowOwnerPID as String] as? Int else { continue }
+            result.insert(pid_t(owner))
         }
         return result
     }

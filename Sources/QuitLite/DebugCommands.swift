@@ -101,16 +101,6 @@ enum DebugCommands {
                 r += "   CG[\(i)] num=\(num) layer=\(layer) "
                 r += "onscreen=\(onscreen) alpha=\(alpha)\n"
             }
-            // CGS Space sorgusu — bu uygulamanın layer 0 pencereleri kaç
-            // Space'te? 0 = hepsi gizli (orderOut), >0 = en az biri bir Space'te.
-            let layer0IDs = mine.compactMap { w -> CGWindowID? in
-                guard (w[kCGWindowLayer as String] as? Int) == 0,
-                      let n = w[kCGWindowNumber as String] as? Int else { return nil }
-                return CGWindowID(n)
-            }
-            let spaceCount = WindowSpaces.spaceCount(ofWindowIDs: layer0IDs)
-            r += "   CGS: spaceCount=\(spaceCount.map(String.init) ?? "nil(CGS yok)") "
-            r += "(layer0 pencere=\(layer0IDs.count))\n"
             r += "\n"
         }
         let path = "/tmp/quitlite-diagnose.txt"
@@ -156,9 +146,10 @@ enum DebugCommands {
         let subrole = string(kAXSubroleAttribute as String)
         let title = string(kAXTitleAttribute as String)
         let minimized = flag(kAXMinimizedAttribute as String)
+        let fullscreen = flag("AXFullScreen")
         let pos = geom(kAXPositionAttribute as String, .cgPoint)
         let size = geom(kAXSizeAttribute as String, .cgSize)
         return "role=\(role) subrole=\(subrole) minimized=\(minimized) "
-            + "pos=\(pos) size=\(size) title=\"\(title)\""
+            + "fullscreen=\(fullscreen) pos=\(pos) size=\(size) title=\"\(title)\""
     }
 }
