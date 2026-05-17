@@ -84,9 +84,15 @@ final class AppWatcher {
     }
 
     /// Uygulamanın o anki gerçek (uygulamayı ayakta tutan) pencerelerini döndürür.
-    /// Kayan palet/panel gibi yardımcı pencereler sayılmaz; özel başlık çubuklu
-    /// Electron pencereleri dahil diğer HER pencere sayılır (bkz. isStandardWindow).
-    /// Minimize edilmiş pencereler hâlâ AX listesinde olduğundan açık sayılır.
+    /// Kayan palet/panel gibi yardımcı pencereler sayılmaz. Minimize edilmiş
+    /// pencereler "açık" sayılır.
+    ///
+    /// Discord/Slack/VS Code gibi Electron uygulamaları son pencere kapatılınca
+    /// pencereyi YOK ETMEZ — `orderOut` ile gizler. Gizli pencere AX listesinde
+    /// "standart pencere" olarak kalır; AX bu yüzden tek başına yetmez. Çözüm:
+    /// AX standart pencereleri varsa, ek olarak pencere sunucusuna (CGWindowList)
+    /// sorulur — gerçekten ekranda görünen pencere yoksa VE hiçbiri minimize
+    /// değilse uygulama penceresiz sayılır.
     ///
     /// AX çağrısı başarısız olursa (uygulama yanıt vermiyor, izin yok vb.) `nil`
     /// döner — bu "durum bilinmiyor" demektir ve "0 pencere" ile karıştırılmamalıdır.
@@ -96,14 +102,47 @@ final class AppWatcher {
         guard AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value) == .success,
               let windows = value as? [AXUIElement] else { return nil }
         var result: [AXUIElement] = []
+        var anyMinimized = false
         for window in windows {
             // Herhangi bir pencerenin alt-rolü SORGULANAMAZSA (örn. izin tam bu
             // sırada geri alındı) durum belirsizdir → nil dön. Aksi halde sorgu
             // hataları "0 standart pencere" sanılıp uygulama yanlışlıkla kapatılır.
             guard let standard = isStandardWindow(window) else { return nil }
-            if standard { result.append(window) }
+            guard standard else { continue }
+            result.append(window)
+            if isMinimized(window) { anyMinimized = true }
+        }
+        // AX'te standart pencere var ama hiçbiri minimize değil → bunların hepsi
+        // gizli (Discord gibi) olabilir. Pencere sunucusu ekranda görünür pencere
+        // bildirmiyorsa uygulama gerçekten penceresizdir.
+        if !result.isEmpty, !anyMinimized, onScreenWindowCount() == 0 {
+            return []
         }
         return result
+    }
+
+    /// Pencere minimize mi? AX hatasında `false` döner — bu güvenli yöndür:
+    /// pencere yine de listede sayılır, uygulama yanlışlıkla kapatılmaz.
+    private func isMinimized(_ window: AXUIElement) -> Bool {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString,
+                                            &value) == .success else { return false }
+        return (value as? Bool) ?? false
+    }
+
+    /// Bu uygulamanın O AN EKRANDA görünen normal (layer 0) pencere sayısı —
+    /// doğrudan pencere sunucusundan (CGWindowList). `orderOut` ile gizlenmiş
+    /// pencereler burada görünmez; gerçekten görünür olanlar görünür.
+    private func onScreenWindowCount() -> Int {
+        guard let list = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)
+                as? [[String: Any]] else { return 0 }
+        var count = 0
+        for window in list {
+            guard (window[kCGWindowOwnerPID as String] as? Int) == Int(pid) else { continue }
+            guard (window[kCGWindowLayer as String] as? Int) == 0 else { continue }
+            count += 1
+        }
+        return count
     }
 
     /// Yalnızca kesinlikle yardımcı olan kayan palet/panel alt-rolleri. Pencere
