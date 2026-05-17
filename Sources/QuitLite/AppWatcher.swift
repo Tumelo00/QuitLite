@@ -83,8 +83,9 @@ final class AppWatcher {
         observer = nil
     }
 
-    /// Uygulamanın o anki "standart" pencerelerini döndürür.
-    /// Sheet, popover, panel, palette gibi yardımcı pencereler sayılmaz.
+    /// Uygulamanın o anki gerçek (uygulamayı ayakta tutan) pencerelerini döndürür.
+    /// Kayan palet/panel gibi yardımcı pencereler sayılmaz; özel başlık çubuklu
+    /// Electron pencereleri dahil diğer HER pencere sayılır (bkz. isStandardWindow).
     /// Minimize edilmiş pencereler hâlâ AX listesinde olduğundan açık sayılır.
     ///
     /// AX çağrısı başarısız olursa (uygulama yanıt vermiyor, izin yok vb.) `nil`
@@ -105,13 +106,42 @@ final class AppWatcher {
         return result
     }
 
-    /// true = standart pencere, false = değil, nil = alt-rol sorgulanamadı (AX hatası).
+    /// Yalnızca kesinlikle yardımcı olan kayan palet/panel alt-rolleri. Pencere
+    /// sayımında KARA liste olarak kullanılır: bu sette OLMAYAN her pencere
+    /// gerçek sayılır. Süreç ömrü boyunca bir kez oluşturulur (static let).
+    private static let auxiliarySubroles: Set<String> = [
+        kAXFloatingWindowSubrole as String,
+        kAXSystemFloatingWindowSubrole as String
+    ]
+
+    /// true  = uygulamayı ayakta tutan gerçek bir pencere,
+    /// false = yalnızca yardımcı pencere (kayan palet/panel),
+    /// nil   = alt-rol sorgulanamadı (AX hatası — durum belirsiz).
+    ///
+    /// Beyaz liste ("yalnızca AXStandardWindow say") yerine KARA liste: alt-rolü
+    /// kesinlikle yardımcı olanlar dışında her pencere gerçek sayılır. Electron
+    /// uygulamaları (Discord, Slack, VS Code…) özel başlık çubuğu kullandığından
+    /// ana pencerelerini her zaman `AXStandardWindow` bildirmez; beyaz liste
+    /// bunları görmezden gelir, kara liste görür. Bu yön yanlış kapatma riskini
+    /// ARTIRMAZ — azaltır: daha çok pencere "gerçek" sayılır, uygulama daha geç
+    /// kapatılır.
     private func isStandardWindow(_ window: AXUIElement) -> Bool? {
         var roleValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(window, kAXSubroleAttribute as CFString,
-                                            &roleValue) == .success else { return nil }
-        guard let subrole = roleValue as? String else { return false }
-        return subrole == (kAXStandardWindowSubrole as String)
+        let status = AXUIElementCopyAttributeValue(
+            window, kAXSubroleAttribute as CFString, &roleValue)
+        switch status {
+        case .success:
+            // Alt-rol bir String değilse (boş değer) yardımcı değildir → gerçek say.
+            guard let subrole = roleValue as? String else { return true }
+            return !AppWatcher.auxiliarySubroles.contains(subrole)
+        case .noValue, .attributeUnsupported:
+            // Pencerenin alt-rolü hiç yok — yardımcı değil → gerçek say.
+            // (Özel başlık çubuklu Electron pencereleri sıklıkla buraya düşer.)
+            return true
+        default:
+            // .cannotComplete (uygulama yanıt vermiyor) vb. → durum belirsiz.
+            return nil
+        }
     }
 
     /// Mevcut pencerelere "yok edildi" bildirimi kaydeder. Önce önceki turdaki
@@ -131,16 +161,55 @@ final class AppWatcher {
         registeredWindows = current
     }
 
+    /// DEBUG: uygulamanın ham AX pencere listesini tek tek döker. Yalnızca
+    /// `kDebugMode`'da (--debug) çağrılır; üründe bu yola hiç girilmez.
+    /// Electron (Discord vb.) uygulamalarının gizli/yardımcı pencerelerini
+    /// teşhis etmek için: her pencerenin alt-rolü, minimize durumu ve başlığı.
+    private func debugWindowDump() {
+        var value: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value)
+        let raw = (value as? [AXUIElement]) ?? []
+        NSLog("QuitLite[axdump] \(bundleID) pid=\(pid) policy=\(app.activationPolicy.rawValue) "
+            + "axStatus=\(status.rawValue) rawWindows=\(raw.count) hadWindow=\(hadWindow)")
+        for (i, window) in raw.enumerated() {
+            var subVal: CFTypeRef?
+            let subStatus = AXUIElementCopyAttributeValue(
+                window, kAXSubroleAttribute as CFString, &subVal)
+            let subrole = (subVal as? String) ?? "<sorgu hatası \(subStatus.rawValue)>"
+            var minVal: CFTypeRef?
+            _ = AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString, &minVal)
+            let minimized = (minVal as? Bool) ?? false
+            var titleVal: CFTypeRef?
+            _ = AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &titleVal)
+            let title = (titleVal as? String) ?? ""
+            NSLog("QuitLite[axdump]   pencere[\(i)] subrole=\(subrole) "
+                + "minimized=\(minimized) başlık=\"\(title)\"")
+        }
+    }
+
     /// Pencere sayısını yeniden hesaplar ve uygun callback'i tetikler.
     func evaluate() {
         guard !app.isTerminated else { return }
+        if kDebugMode { debugWindowDump() }
         // nil = pencere durumu belirlenemedi (AX hatası) → hiçbir şey yapma.
-        guard let windows = standardWindows() else { return }
+        guard let windows = standardWindows() else {
+            if kDebugMode { NSLog("QuitLite[eval] \(bundleID): standardWindows=nil → karar yok") }
+            return
+        }
         if !windows.isEmpty {
+            if kDebugMode && !hadWindow {
+                NSLog("QuitLite[eval] \(bundleID): hadWindow false→true "
+                    + "(\(windows.count) standart pencere)")
+            }
             hadWindow = true
             onWindowAppeared?(self)
         } else if hadWindow {
+            if kDebugMode {
+                NSLog("QuitLite[eval] \(bundleID): 0 standart pencere + hadWindow → onWindowsEmptied")
+            }
             onWindowsEmptied?(self)
+        } else if kDebugMode {
+            NSLog("QuitLite[eval] \(bundleID): 0 standart pencere ama hadWindow=false → atlandı")
         }
     }
 
