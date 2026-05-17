@@ -55,4 +55,59 @@ enum DebugCommands {
             print("  \(manage ? "[yönetilir]" : "[atlanır]  ") \(bid)")
         }
     }
+
+    /// Çalışan tüm .regular uygulamaların AX pencere ağacını döker — Electron
+    /// (Discord vb.) uygulamalarının pencere algılama sorunlarını teşhis için.
+    /// Raporu hem stdout'a basar hem /tmp/quitlite-diagnose.txt dosyasına yazar
+    /// (SSH'tan sistem günlüğü okunamadığında dosya güvenilir kanaldır).
+    static func diagnose() {
+        var r = "QuitLite \(version) — AX pencere teşhis raporu\n"
+        r += "AX izni: \(AXIsProcessTrusted() ? "verildi" : "YOK")\n"
+        let apps = NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular }
+        r += "Çalışan .regular uygulama sayısı: \(apps.count)\n\n"
+        for app in apps {
+            guard let bid = app.bundleIdentifier else { continue }
+            let pid = app.processIdentifier
+            let axApp = AXUIElementCreateApplication(pid)
+            AXUIElementSetMessagingTimeout(axApp, 1.0)
+            var winValue: CFTypeRef?
+            let status = AXUIElementCopyAttributeValue(
+                axApp, kAXWindowsAttribute as CFString, &winValue)
+            let windows = (winValue as? [AXUIElement]) ?? []
+            r += "▸ \(bid)  pid=\(pid)  "
+            r += "shouldManage=\(Preferences.shared.shouldManage(bundleID: bid))\n"
+            r += "   AX windows: status=\(status.rawValue) count=\(windows.count)\n"
+            for (i, window) in windows.enumerated() {
+                r += "   [\(i)] \(describeWindow(window))\n"
+            }
+            if windows.isEmpty { r += "   (AX pencere listesi boş)\n" }
+            r += "\n"
+        }
+        let path = "/tmp/quitlite-diagnose.txt"
+        try? r.write(toFile: path, atomically: true, encoding: .utf8)
+        print(r)
+        print("Rapor kaydedildi: \(path)")
+    }
+
+    /// Tek bir AX pencere öğesinin rol/alt-rol/minimize/başlık özetini verir.
+    private static func describeWindow(_ window: AXUIElement) -> String {
+        func string(_ attr: String) -> String {
+            var value: CFTypeRef?
+            let st = AXUIElementCopyAttributeValue(window, attr as CFString, &value)
+            if st != .success { return "<hata \(st.rawValue)>" }
+            return (value as? String) ?? "<string-değil>"
+        }
+        func flag(_ attr: String) -> String {
+            var value: CFTypeRef?
+            let st = AXUIElementCopyAttributeValue(window, attr as CFString, &value)
+            if st != .success { return "<hata \(st.rawValue)>" }
+            return ((value as? Bool) ?? false) ? "evet" : "hayır"
+        }
+        let role = string(kAXRoleAttribute as String)
+        let subrole = string(kAXSubroleAttribute as String)
+        let title = string(kAXTitleAttribute as String)
+        let minimized = flag(kAXMinimizedAttribute as String)
+        return "role=\(role) subrole=\(subrole) minimized=\(minimized) title=\"\(title)\""
+    }
 }

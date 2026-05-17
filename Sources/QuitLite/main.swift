@@ -25,6 +25,10 @@ if CommandLine.arguments.contains("--dry-run") {
     DebugCommands.dryRun()
     exit(0)
 }
+if CommandLine.arguments.contains("--diagnose") {
+    DebugCommands.diagnose()
+    exit(0)
+}
 if CommandLine.arguments.contains("--uninstall") {
     print("QuitLite kaldırılıyor…")
     for step in Uninstaller.run() { print("  ✓ \(step)") }
