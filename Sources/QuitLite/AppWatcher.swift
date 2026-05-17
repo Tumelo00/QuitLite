@@ -97,15 +97,7 @@ final class AppWatcher {
     /// AX çağrısı başarısız olursa (uygulama yanıt vermiyor, izin yok vb.) `nil`
     /// döner — bu "durum bilinmiyor" demektir ve "0 pencere" ile karıştırılmamalıdır.
     /// Aksi halde yanıt vermeyen bir uygulama yanlışlıkla kapatılabilir.
-    /// `precise`: bir pencere OLAYI işleniyorsa (kullanıcı/uygulama pencereye
-    /// bir şey yaptı) `true` verilir → Discord gibi uygulamaların gizlenmiş
-    /// pencerelerini ayırmak için CGWindowList görünürlük denetimi yapılır.
-    /// Periyodik emniyet taraması `precise=false` çağırır: yalnızca AX'e güvenir
-    /// — başka bir Space'teki ya da tam ekran bir uygulamayı yanlışlıkla
-    /// penceresiz sanıp kapatmamak için. Pencere gizleme zaten bir AX olayı
-    /// tetikler (kapatma o yoldan yapılır); tarama yalnızca normal pencere
-    /// yıkımları için yedektir, bu yüzden orada AX tek başına yeter.
-    func standardWindows(precise: Bool = false) -> [AXUIElement]? {
+    func standardWindows() -> [AXUIElement]? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value) == .success,
               let windows = value as? [AXUIElement] else { return nil }
@@ -118,15 +110,14 @@ final class AppWatcher {
             guard let standard = isStandardWindow(window) else { return nil }
             guard standard else { continue }
             result.append(window)
-            // Minimize denetimi yalnızca precise yolda gerekir (CG denetiminin
-            // kapısı). Tek minimize pencere yeter; ilkini bulunca sormayı bırak.
-            if precise, !anyMinimized, isMinimized(window) { anyMinimized = true }
+            // Tek bir minimize pencere bile uygulamayı "açık" yapar; ilkini
+            // bulunca AX'e sormayı bırak.
+            if !anyMinimized, isMinimized(window) { anyMinimized = true }
         }
-        // Yalnızca precise yolda: AX standart pencere bildiriyor ama hiçbiri
-        // minimize değil → hepsi gizli (Discord gibi) olabilir. Pencere sunucusu
-        // ekranda görünür pencere bildirmiyorsa uygulama gerçekten penceresizdir.
-        if precise, !result.isEmpty, !anyMinimized,
-           !OnScreenWindowCache.hasOnScreenWindow(pid: pid) {
+        // AX'te standart pencere var ama hiçbiri minimize değil → bunların hepsi
+        // gizli (Discord gibi) olabilir. Pencere sunucusu ekranda görünür pencere
+        // bildirmiyorsa uygulama gerçekten penceresizdir.
+        if !result.isEmpty, !anyMinimized, !OnScreenWindowCache.hasOnScreenWindow(pid: pid) {
             return []
         }
         return result
@@ -197,11 +188,10 @@ final class AppWatcher {
     }
 
     /// Pencere sayısını yeniden hesaplar ve uygun callback'i tetikler.
-    /// `precise`: bir pencere olayından mı geliniyor (bkz. standardWindows).
-    func evaluate(precise: Bool = false) {
+    func evaluate() {
         guard !app.isTerminated else { return }
         // nil = pencere durumu belirlenemedi (AX hatası) → hiçbir şey yapma.
-        guard let windows = standardWindows(precise: precise) else {
+        guard let windows = standardWindows() else {
             if kDebugMode { NSLog("QuitLite[eval] \(bundleID): standardWindows=nil → karar yok") }
             return
         }
@@ -241,9 +231,7 @@ final class AppWatcher {
                 // bile yeni pencereler 'yok edildi' bildirimine kavuşur.
                 // Kayıt idempotent ve ucuzdur (zaten kayıtlıysa no-op).
                 self.registerDestroyObservers()
-                // Bir AX pencere olayından geliniyor → precise: gizli pencere
-                // (Discord) denetimi burada yapılır.
-                self.evaluate(precise: true)
+                self.evaluate()
             }
         }
     }
