@@ -218,6 +218,15 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate,
 
         stack.addArrangedSubview(caption("QuitLite'ı tamamen durdurur: arka plan "
             + "çekirdeğini kapatır ve girişte otomatik başlatmayı kaldırır."))
+
+        let uninstallButton = NSButton(title: "QuitLite'ı Bilgisayardan Kaldır",
+                                       target: self, action: #selector(uninstallQuitLite))
+        uninstallButton.bezelStyle = .rounded
+        stack.addArrangedSubview(uninstallButton)
+
+        stack.addArrangedSubview(caption("QuitLite'a ait HER ŞEYİ kaldırır: arka plan "
+            + "çekirdeği, açılışta başlatma, tüm ayarlar, önbellek ve Erişilebilirlik "
+            + "izni kaydı silinir; QuitLite.app Çöp'e taşınır. Sistemde iz bırakmaz."))
     }
 
     // MARK: - Yerleşim yardımcıları
@@ -340,6 +349,21 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate,
         alert.addButton(withTitle: "Vazgeç")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         CoreAgent.unregister()
+        NSApp.terminate(nil)
+    }
+
+    /// QuitLite'ı sistemden tamamen kaldırır. Geri alınamaz; önce onay alınır.
+    @objc private func uninstallQuitLite() {
+        let alert = NSAlert()
+        alert.messageText = "QuitLite bilgisayardan tamamen kaldırılsın mı?"
+        alert.informativeText = "Arka plan çekirdeği, açılışta başlatma, tüm ayarlar, "
+            + "önbellek ve Erişilebilirlik izni kaydı silinecek; QuitLite.app Çöp'e "
+            + "taşınacak. Bu işlem geri alınamaz."
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: "Kaldır ve Çık")
+        alert.addButton(withTitle: "Vazgeç")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        Uninstaller.run()
         NSApp.terminate(nil)
     }
 
