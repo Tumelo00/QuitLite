@@ -101,6 +101,16 @@ enum DebugCommands {
                 r += "   CG[\(i)] num=\(num) layer=\(layer) "
                 r += "onscreen=\(onscreen) alpha=\(alpha)\n"
             }
+            // CGS Space sorgusu — bu uygulamanın layer 0 pencereleri kaç
+            // Space'te? 0 = hepsi gizli (orderOut), >0 = en az biri bir Space'te.
+            let layer0IDs = mine.compactMap { w -> CGWindowID? in
+                guard (w[kCGWindowLayer as String] as? Int) == 0,
+                      let n = w[kCGWindowNumber as String] as? Int else { return nil }
+                return CGWindowID(n)
+            }
+            let spaceCount = WindowSpaces.spaceCount(ofWindowIDs: layer0IDs)
+            r += "   CGS: spaceCount=\(spaceCount.map(String.init) ?? "nil(CGS yok)") "
+            r += "(layer0 pencere=\(layer0IDs.count))\n"
             r += "\n"
         }
         let path = "/tmp/quitlite-diagnose.txt"
