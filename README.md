@@ -54,9 +54,19 @@ Gereksinim: Swift 5.9+ ve Xcode komut satırı araçları.
 
 En son `QuitLite.dmg`, deponun **Releases → "latest"** sayfasından indirilebilir;
 her `main` push'unda GitHub Actions tarafından macOS üzerinde otomatik derlenir.
+Her yayın, DMG'nin yanında bir `QuitLite.dmg.sha256` dosyası içerir.
+
+İndirdiğiniz DMG'nin bütünlüğünü doğrulamak isterseniz, `QuitLite.dmg.sha256`
+dosyasını DMG ile **aynı klasöre** koyup şunu çalıştırın — `OK` görmelisiniz:
+
+```bash
+shasum -a 256 -c QuitLite.dmg.sha256
+```
 
 DMG'yi açtığınızda içindeki **`Önce Beni Aç.html`** dosyası, aşağıdaki adımları
-ve kopyalanabilir komutu görsel bir sayfa olarak gösterir.
+ve kopyalanabilir komutu görsel bir sayfa olarak gösterir. DMG ayrıca, macOS
+engellerse uygulamayı açmaya yardımcı **`Open_If_macOS_Blocks.command`** betiğini
+de içerir (bkz. aşağıdaki adım 2).
 
 1. `QuitLite.dmg`'yi açın, `QuitLite.app`'i DMG'deki **`Applications`**
    kısayoluna sürükleyin. QuitLite'ı `/Applications` dışından çalıştırmayın —
@@ -68,6 +78,12 @@ ve kopyalanabilir komutu görsel bir sayfa olarak gösterir.
      aşağı kaydırın → "QuitLite engellendi" satırında **Yine de Aç** → parola
      veya Touch ID. (Apple'ın onayladığı yol; Terminal gerekmez.)
    - **macOS 14 ve altı:** `QuitLite.app`'e sağ tık → **Aç** → **Aç**.
+   - **Yardımcı betikle (Terminal bilmeyenler için):** DMG'deki
+     **`Open_If_macOS_Blocks.command`** dosyasına çift tıklayın. Betik, ne
+     yapacağını açıkça yazar, onayınızı bekler ve yalnızca QuitLite.app'in
+     karantina özniteliğini kaldırır — sudo gerektirmez, Gatekeeper'ı genel
+     olarak kapatmaz, başka dosyaya dokunmaz. Betiğin kendisi de notarize
+     edilmediği için ilk açışta sağ tık → **Aç** gerekebilir.
    - **Terminal'le (tüm sürümler, en kesini):**
      `xattr -dr com.apple.quarantine /Applications/QuitLite.app`
    Bu yalnızca **ilk sefer** gerekir; sonra QuitLite normal açılır.

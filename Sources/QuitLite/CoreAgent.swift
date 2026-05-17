@@ -105,6 +105,14 @@ enum CoreAgent {
             "ProgramArguments": [binary, "--core"],
             "RunAtLoad": true,
             "KeepAlive": true,
+            // Hafif "safe mode": çekirdek bir çökme döngüsüne (crash-loop)
+            // girerse launchd onu ThrottleInterval'dan daha sık başlatmaz.
+            // Özel crash sayacı / çalışma-zamanı durumu YOK — bu tamamen
+            // launchd'in yerleşik korumasıdır (ek kod yok, RAM/CPU etkisi yok).
+            // 30 sn: varsayılan 10 sn'den daha nazik (çöküyorsa sistemi 3 kat
+            // daha az uyandırır), ama tek seferlik bir çökmeden sonra kurtarmayı
+            // da ciddi geciktirmez — çekirdek normalde hiç çıkmaz.
+            "ThrottleInterval": 30,
             // Adaptive: boştayken düşük öncelikli, izlenecek iş çıkınca sistem
             // süreci yükseltir. Background tier'ı, ~10 sn'de tepki vermesi
             // gereken bir izleyici için fazla agresif throttle uygular.

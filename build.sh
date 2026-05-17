@@ -73,10 +73,25 @@ ln -s /Applications "$STAGE/Applications"
 # Kopyala butonlu kurulum rehberi. HTML bir belgedir; Gatekeeper engellemez
 # (yalnızca uygulama/betik gibi çalıştırılabilirleri engeller).
 cp Resources/install.html "$STAGE/Önce Beni Aç.html"
+# macOS engellerse uygulamayı açmaya yardımcı, ŞEFFAF betik. Yalnızca
+# /Applications/QuitLite.app'ten karantina özniteliğini kaldırır; sudo istemez,
+# Gatekeeper'ı genel olarak kapatmaz, başka hiçbir dosyaya dokunmaz.
+# Unix (LF) satır sonlarını GARANTİLE: CRLF olursa "#!/bin/zsh" şebang satırı
+# sondaki "\r" yüzünden bozulur ve betik hiç çalışmaz. tr ile CR'leri sıyırarak
+# kopyala, sonra çalıştırma iznini ver (izin hdiutil ile DMG'ye taşınır).
+tr -d '\r' < Resources/Open_If_macOS_Blocks.command > "$STAGE/Open_If_macOS_Blocks.command"
+chmod +x "$STAGE/Open_If_macOS_Blocks.command"
 hdiutil create -volname "QuitLite" -srcfolder "$STAGE" -ov -format UDZO \
   -imagekey zlib-level=9 -quiet "$DMG"
 rm -rf "$STAGE"
 
+# Sürüm bütünlüğü doğrulaması için SHA-256 sağlama toplamı. Kullanıcı, indirdiği
+# DMG'nin bozulmadığını/değiştirilmediğini şununla doğrular (aynı klasörde):
+#   shasum -a 256 -c QuitLite.dmg.sha256
+echo "→ SHA-256 sağlama toplamı oluşturuluyor…"
+shasum -a 256 "$DMG" > "$DMG.sha256"
+
 echo "✓ Hazır:"
-echo "  $(pwd)/$APP   ($(du -sh "$APP" | cut -f1))"
-echo "  $(pwd)/$DMG   ($(du -sh "$DMG" | cut -f1))"
+echo "  $(pwd)/$APP          ($(du -sh "$APP" | cut -f1))"
+echo "  $(pwd)/$DMG          ($(du -sh "$DMG" | cut -f1))"
+echo "  $(pwd)/$DMG.sha256   (SHA-256: $(cut -d' ' -f1 "$DMG.sha256"))"
