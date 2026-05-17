@@ -12,6 +12,20 @@ var coreController: CoreController?
 var coreMenuController: CoreMenuController?
 var appDelegate: AppDelegate?
 
+// Tek seferlik tanı komutları — yerleşik çekirdeği BAŞLATMADAN yazdır ve çık.
+// Boşta RAM/CPU/uyanma etkisi sıfır; yalnızca elle (Terminal'den) çalıştırılır.
+if CommandLine.arguments.contains("--dump-state") {
+    DebugCommands.dumpState()
+    exit(0)
+}
+if CommandLine.arguments.contains("--self-test") {
+    exit(DebugCommands.selfTest() ? 0 : 1)
+}
+if CommandLine.arguments.contains("--dry-run") {
+    DebugCommands.dryRun()
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--core") {
     let core = CoreController()
     coreController = core

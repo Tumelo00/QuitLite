@@ -140,17 +140,59 @@ public final class Preferences {
     /// henüz diske inmemiş eski değeri okuyabilir (iki süreç ayrı önbellek tutar).
     public func flush() {
         defaults.synchronize()
+        // Çekirdeğe "ayarlar değişti" sinyali gönder — yeniden başlatma olmadan
+        // canlı yüklesin. Darwin bildirimi: süreçler arası en hafif IPC; userInfo
+        // taşımaz, eşleşme/handshake gerektirmez, yalnızca çekirdekte tek bir
+        // uyanma + yeniden okuma tetikler.
+        CFNotificationCenterPostNotification(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            CFNotificationName(rawValue: kPrefsChangedNotification as CFString),
+            nil, nil, true)
+    }
+
+    /// `flush()`'ın ters yönü — çekirdek için. `synchronize()` yalnızca yazımları
+    /// indirmez; bu süreçte DEĞİŞTİRİLMEMİŞ alanları da diskteki güncel değere
+    /// tazeler. Çekirdek, GUI'den "ayarlar değişti" Darwin bildirimini alınca
+    /// çağırır; böylece değişiklik çekirdek yeniden başlatılmadan etkili olur.
+    public func refresh() {
+        defaults.synchronize()
+    }
+
+    /// Bundle kimliğini karşılaştırma için normalleştirir: baştaki/sondaki
+    /// boşlukları atar ve küçük harfe çevirir. Böylece aynı uygulamanın
+    /// "com.hnc.Discord" / "com.hnc.discord" / "COM.HNC.DISCORD" varyantları eşleşir.
+    static func normalized(_ id: String) -> String {
+        id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     /// Verilen bundle kimliği QuitLite tarafından otomatik kapatılmalı mı?
+    /// Karşılaştırma normalleştirilmiş kimliklerle yapılır (büyük/küçük harf
+    /// duyarsız). `--debug` açıkken kararın gerekçesini izler.
     public func shouldManage(bundleID: String) -> Bool {
-        guard enabled else { return false }
-        guard bundleID != kGUIBundleID else { return false }
-        switch mode {
-        case .allApps:
-            return !blacklist.contains(bundleID)
-        case .whitelistOnly:
-            return whitelist.contains(bundleID)
+        let id = Preferences.normalized(bundleID)
+        var result = false
+        let reason: String
+
+        if !enabled {
+            reason = "disabled"
+        } else if id == Preferences.normalized(kGUIBundleID) {
+            reason = "self"
+        } else {
+            switch mode {
+            case .allApps:
+                let listed = blacklist.contains { Preferences.normalized($0) == id }
+                result = !listed
+                reason = listed ? "blacklisted" : "allApps"
+            case .whitelistOnly:
+                result = whitelist.contains { Preferences.normalized($0) == id }
+                reason = result ? "whitelisted" : "not-whitelisted"
+            }
         }
+
+        if kDebugMode {
+            NSLog("QuitLite[shouldManage] raw=\(bundleID) norm=\(id) "
+                + "mode=\(mode.rawValue) → manage=\(result) (\(reason))")
+        }
+        return result
     }
 }

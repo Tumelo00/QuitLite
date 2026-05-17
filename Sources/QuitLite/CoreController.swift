@@ -26,6 +26,28 @@ final class CoreController {
         _ = axTrusted(prompt: true)
         tick()
         scheduleNextCheck()
+
+        // GUI ayar değiştirip diske yazınca bir Darwin bildirimi gönderir.
+        // Çekirdek burada dinler ve ayarları CANLI yükler — yeniden başlatma yok,
+        // yoklama (polling) yok. Tek observer; CoreController gibi süreç ömrü
+        // boyunca yaşadığından kaldırılması gerekmez (passUnretained güvenli).
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            Unmanaged.passUnretained(self).toOpaque(),
+            corePrefsChangedCallback,
+            kPrefsChangedNotification as CFString,
+            nil,
+            .deliverImmediately)
+    }
+
+    /// GUI'den "ayarlar değişti" Darwin bildirimi gelince çağrılır (ana thread:
+    /// Darwin callback'leri kaydı yapan thread'in run loop'unda teslim edilir).
+    /// Ayarları diskten tazeler ve izlenen uygulamaları bir kez yeniden
+    /// değerlendirir; yeni nesne, zamanlayıcı ya da kalıcı durum oluşturmaz.
+    func reloadPreferences() {
+        Preferences.shared.refresh()
+        if kDebugMode { NSLog("QuitLite[reload] ayarlar canlı yüklendi") }
+        monitor.preferencesChanged()
     }
 
     /// İzin yoklamasını kendi kendine yeniden zamanlar.
@@ -58,4 +80,15 @@ final class CoreController {
         let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue()
         return AXIsProcessTrustedWithOptions([key: prompt] as CFDictionary)
     }
+}
+
+/// Darwin bildirimi C callback'i — bağlam yakalayamaz; observer pointer ile
+/// canlı CoreController'a köprülenir (AppWatcher'daki AXObserver kalıbının aynısı).
+private func corePrefsChangedCallback(_ center: CFNotificationCenter?,
+                                      _ observer: UnsafeMutableRawPointer?,
+                                      _ name: CFNotificationName?,
+                                      _ object: UnsafeRawPointer?,
+                                      _ userInfo: CFDictionary?) {
+    guard let observer else { return }
+    Unmanaged<CoreController>.fromOpaque(observer).takeUnretainedValue().reloadPreferences()
 }

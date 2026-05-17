@@ -83,6 +83,28 @@ final class WindowMonitor {
         quitController.scheduleQuit(for: watcher, delay: Preferences.shared.quitDelay)
     }
 
+    /// Çekirdek, GUI'den "ayarlar değişti" Darwin bildirimi alınca çağırır.
+    /// Tek seferlik tarama: artık yönetilmeyen uygulamaların bekleyen kapatmasını
+    /// iptal eder (stale karar temizliği), sonra her izleneni bir kez yeniden
+    /// değerlendirir — kara listeden yeni çıkarılmış, hâlihazırda penceresiz bir
+    /// uygulama anında kapatma sırasına girer. Yeni nesne/zamanlayıcı oluşturmaz.
+    func preferencesChanged() {
+        guard running else { return }
+        for watcher in Array(watchers.values) {
+            if watcher.app.isTerminated {
+                removeWatcher(pid: watcher.pid)
+                continue
+            }
+            // Artık yönetilmiyorsa (kara listeye eklendi / mod değişti) bekleyen
+            // kapatmayı ve quitRequested işaretini düşür — cancelQuit ikisini de
+            // temizler; yoksa eski karar yine de uygulanır.
+            if !Preferences.shared.shouldManage(bundleID: watcher.bundleID) {
+                quitController.cancelQuit(pid: watcher.pid)
+            }
+            autoreleasepool { watcher.evaluate() }
+        }
+    }
+
     // MARK: - NSWorkspace bildirimleri
 
     @objc private func appLaunched(_ note: Notification) {
