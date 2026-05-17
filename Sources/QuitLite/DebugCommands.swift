@@ -61,15 +61,22 @@ enum DebugCommands {
     /// Raporu hem stdout'a basar hem /tmp/quitlite-diagnose.txt dosyasına yazar
     /// (SSH'tan sistem günlüğü okunamadığında dosya güvenilir kanaldır).
     static func diagnose() {
-        var r = "QuitLite \(version) — AX pencere teşhis raporu\n"
+        var r = "QuitLite \(version) — AX + CG pencere teşhis raporu\n"
         r += "AX izni: \(AXIsProcessTrusted() ? "verildi" : "YOK")\n"
         let apps = NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular }
         r += "Çalışan .regular uygulama sayısı: \(apps.count)\n\n"
+        // CoreGraphics pencere listeleri (sistem geneli) bir kez alınır.
+        // [] (boş seçenek) = TÜM pencereler (ekran dışı / başka Space dahil);
+        // .optionOnScreenOnly = yalnızca o an ekranda görünenler.
+        let cgAll = (CGWindowListCopyWindowInfo([], kCGNullWindowID)
+                     as? [[String: Any]]) ?? []
+        let cgScreen = (CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)
+                        as? [[String: Any]]) ?? []
         for app in apps {
             guard let bid = app.bundleIdentifier else { continue }
-            let pid = app.processIdentifier
-            let axApp = AXUIElementCreateApplication(pid)
+            let pid = Int(app.processIdentifier)
+            let axApp = AXUIElementCreateApplication(app.processIdentifier)
             AXUIElementSetMessagingTimeout(axApp, 1.0)
             var winValue: CFTypeRef?
             let status = AXUIElementCopyAttributeValue(
@@ -79,9 +86,21 @@ enum DebugCommands {
             r += "shouldManage=\(Preferences.shared.shouldManage(bundleID: bid))\n"
             r += "   AX windows: status=\(status.rawValue) count=\(windows.count)\n"
             for (i, window) in windows.enumerated() {
-                r += "   [\(i)] \(describeWindow(window))\n"
+                r += "   AX[\(i)] \(describeWindow(window))\n"
             }
-            if windows.isEmpty { r += "   (AX pencere listesi boş)\n" }
+            let mine = cgAll.filter { ($0[kCGWindowOwnerPID as String] as? Int) == pid }
+            let mineScreen = cgScreen.filter {
+                ($0[kCGWindowOwnerPID as String] as? Int) == pid
+            }
+            r += "   CG windows: tüm=\(mine.count) ekranda=\(mineScreen.count)\n"
+            for (i, w) in mine.enumerated() {
+                let layer = w[kCGWindowLayer as String] as? Int ?? -999
+                let num = w[kCGWindowNumber as String] as? Int ?? -1
+                let onscreen = (w[kCGWindowIsOnscreen as String] as? Bool) ?? false
+                let alpha = w[kCGWindowAlpha as String] as? Double ?? -1
+                r += "   CG[\(i)] num=\(num) layer=\(layer) "
+                r += "onscreen=\(onscreen) alpha=\(alpha)\n"
+            }
             r += "\n"
         }
         let path = "/tmp/quitlite-diagnose.txt"
@@ -90,7 +109,8 @@ enum DebugCommands {
         print("Rapor kaydedildi: \(path)")
     }
 
-    /// Tek bir AX pencere öğesinin rol/alt-rol/minimize/başlık özetini verir.
+    /// Tek bir AX pencere öğesinin özetini verir: rol, alt-rol, minimize,
+    /// konum, boyut, başlık.
     private static func describeWindow(_ window: AXUIElement) -> String {
         func string(_ attr: String) -> String {
             var value: CFTypeRef?
@@ -104,10 +124,31 @@ enum DebugCommands {
             if st != .success { return "<hata \(st.rawValue)>" }
             return ((value as? Bool) ?? false) ? "evet" : "hayır"
         }
+        func geom(_ attr: String, _ type: AXValueType) -> String {
+            var value: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(window, attr as CFString, &value) == .success,
+                  let v = value, CFGetTypeID(v) == AXValueGetTypeID() else { return "?" }
+            let axv = v as! AXValue
+            if type == .cgPoint {
+                var p = CGPoint.zero
+                if AXValueGetValue(axv, .cgPoint, &p) {
+                    return "(\(Int(p.x)),\(Int(p.y)))"
+                }
+            } else {
+                var s = CGSize.zero
+                if AXValueGetValue(axv, .cgSize, &s) {
+                    return "(\(Int(s.width))x\(Int(s.height)))"
+                }
+            }
+            return "?"
+        }
         let role = string(kAXRoleAttribute as String)
         let subrole = string(kAXSubroleAttribute as String)
         let title = string(kAXTitleAttribute as String)
         let minimized = flag(kAXMinimizedAttribute as String)
-        return "role=\(role) subrole=\(subrole) minimized=\(minimized) title=\"\(title)\""
+        let pos = geom(kAXPositionAttribute as String, .cgPoint)
+        let size = geom(kAXSizeAttribute as String, .cgSize)
+        return "role=\(role) subrole=\(subrole) minimized=\(minimized) "
+            + "pos=\(pos) size=\(size) title=\"\(title)\""
     }
 }
