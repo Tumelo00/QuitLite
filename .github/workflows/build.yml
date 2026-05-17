@@ -84,6 +84,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest QuitLite.dmg \
+          gh release create latest QuitLite.dmg QuitLite.dmg.sha256 \
             --title "QuitLite — en son derleme" \
-            --notes "main dalindan otomatik derlendi. QuitLite.dmg'yi indirin."
+            --notes "main dalindan otomatik derlendi. QuitLite.dmg'yi indirin. Bütünlük doğrulaması için: QuitLite.dmg.sha256 dosyasını DMG ile aynı klasöre koyup \`shasum -a 256 -c QuitLite.dmg.sha256\` çalıştırın."
