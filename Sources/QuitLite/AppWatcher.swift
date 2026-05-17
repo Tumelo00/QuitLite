@@ -110,12 +110,14 @@ final class AppWatcher {
             guard let standard = isStandardWindow(window) else { return nil }
             guard standard else { continue }
             result.append(window)
-            if isMinimized(window) { anyMinimized = true }
+            // Tek bir minimize pencere bile uygulamayı "açık" yapar; ilkini
+            // bulunca AX'e sormayı bırak.
+            if !anyMinimized, isMinimized(window) { anyMinimized = true }
         }
         // AX'te standart pencere var ama hiçbiri minimize değil → bunların hepsi
         // gizli (Discord gibi) olabilir. Pencere sunucusu ekranda görünür pencere
         // bildirmiyorsa uygulama gerçekten penceresizdir.
-        if !result.isEmpty, !anyMinimized, onScreenWindowCount() == 0 {
+        if !result.isEmpty, !anyMinimized, !OnScreenWindowCache.hasOnScreenWindow(pid: pid) {
             return []
         }
         return result
@@ -128,21 +130,6 @@ final class AppWatcher {
         guard AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString,
                                             &value) == .success else { return false }
         return (value as? Bool) ?? false
-    }
-
-    /// Bu uygulamanın O AN EKRANDA görünen normal (layer 0) pencere sayısı —
-    /// doğrudan pencere sunucusundan (CGWindowList). `orderOut` ile gizlenmiş
-    /// pencereler burada görünmez; gerçekten görünür olanlar görünür.
-    private func onScreenWindowCount() -> Int {
-        guard let list = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)
-                as? [[String: Any]] else { return 0 }
-        var count = 0
-        for window in list {
-            guard (window[kCGWindowOwnerPID as String] as? Int) == Int(pid) else { continue }
-            guard (window[kCGWindowLayer as String] as? Int) == 0 else { continue }
-            count += 1
-        }
-        return count
     }
 
     /// Yalnızca kesinlikle yardımcı olan kayan palet/panel alt-rolleri. Pencere
@@ -200,36 +187,9 @@ final class AppWatcher {
         registeredWindows = current
     }
 
-    /// DEBUG: uygulamanın ham AX pencere listesini tek tek döker. Yalnızca
-    /// `kDebugMode`'da (--debug) çağrılır; üründe bu yola hiç girilmez.
-    /// Electron (Discord vb.) uygulamalarının gizli/yardımcı pencerelerini
-    /// teşhis etmek için: her pencerenin alt-rolü, minimize durumu ve başlığı.
-    private func debugWindowDump() {
-        var value: CFTypeRef?
-        let status = AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value)
-        let raw = (value as? [AXUIElement]) ?? []
-        NSLog("QuitLite[axdump] \(bundleID) pid=\(pid) policy=\(app.activationPolicy.rawValue) "
-            + "axStatus=\(status.rawValue) rawWindows=\(raw.count) hadWindow=\(hadWindow)")
-        for (i, window) in raw.enumerated() {
-            var subVal: CFTypeRef?
-            let subStatus = AXUIElementCopyAttributeValue(
-                window, kAXSubroleAttribute as CFString, &subVal)
-            let subrole = (subVal as? String) ?? "<sorgu hatası \(subStatus.rawValue)>"
-            var minVal: CFTypeRef?
-            _ = AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString, &minVal)
-            let minimized = (minVal as? Bool) ?? false
-            var titleVal: CFTypeRef?
-            _ = AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &titleVal)
-            let title = (titleVal as? String) ?? ""
-            NSLog("QuitLite[axdump]   pencere[\(i)] subrole=\(subrole) "
-                + "minimized=\(minimized) başlık=\"\(title)\"")
-        }
-    }
-
     /// Pencere sayısını yeniden hesaplar ve uygun callback'i tetikler.
     func evaluate() {
         guard !app.isTerminated else { return }
-        if kDebugMode { debugWindowDump() }
         // nil = pencere durumu belirlenemedi (AX hatası) → hiçbir şey yapma.
         guard let windows = standardWindows() else {
             if kDebugMode { NSLog("QuitLite[eval] \(bundleID): standardWindows=nil → karar yok") }
@@ -285,4 +245,38 @@ private func axObserverCallback(_ observer: AXObserver,
     guard let refcon else { return }
     let watcher = Unmanaged<AppWatcher>.fromOpaque(refcon).takeUnretainedValue()
     watcher.handleNotification()
+}
+
+/// Ekranda görünür (layer 0) penceresi olan uygulamaların pid kümesi.
+///
+/// `CGWindowListCopyWindowInfo` sistem genelinde pencere bilgisi tahsis eden
+/// pahalı bir çağrıdır. Emniyet taraması her pencereli uygulama için
+/// `standardWindows()` çağırır; her biri ayrı ayrı sorsa tur başına onlarca
+/// tahsis olurdu. Sonuç çok kısa süre (0,5 sn) önbelleğe alınır: tüm tarama
+/// turu tek bir CG çağrısı paylaşır, recheck (1 sn sonra) ise süre dolduğundan
+/// taze veri alır. Yalnızca ana thread'den erişilir — kilit gerekmez.
+private enum OnScreenWindowCache {
+    private static var pids: Set<pid_t> = []
+    private static var capturedAt: TimeInterval = -1
+
+    static func hasOnScreenWindow(pid: pid_t) -> Bool {
+        let now = ProcessInfo.processInfo.systemUptime
+        if capturedAt < 0 || now - capturedAt > 0.5 {
+            capturedAt = now
+            pids = capture()
+        }
+        return pids.contains(pid)
+    }
+
+    private static func capture() -> Set<pid_t> {
+        guard let list = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)
+                as? [[String: Any]] else { return [] }
+        var result: Set<pid_t> = []
+        for window in list {
+            guard (window[kCGWindowLayer as String] as? Int) == 0,
+                  let owner = window[kCGWindowOwnerPID as String] as? Int else { continue }
+            result.insert(pid_t(owner))
+        }
+        return result
+    }
 }
