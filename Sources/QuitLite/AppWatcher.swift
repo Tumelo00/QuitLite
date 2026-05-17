@@ -89,10 +89,11 @@ final class AppWatcher {
     ///
     /// Discord/Slack/VS Code gibi Electron uygulamaları son pencere kapatılınca
     /// pencereyi YOK ETMEZ — `orderOut` ile gizler. Gizli pencere AX listesinde
-    /// "standart pencere" olarak kalır; AX bu yüzden tek başına yetmez. Çözüm:
-    /// AX standart pencereleri varsa, ek olarak pencere sunucusuna (CGWindowList)
-    /// sorulur — gerçekten ekranda görünen pencere yoksa VE hiçbiri minimize
-    /// değilse uygulama penceresiz sayılır.
+    /// "standart pencere" olarak kalır; AX tek başına yetmez. Çözüm: AX standart
+    /// pencereleri varsa ve hiçbiri minimize değilse, pencere sunucusuna sorulur —
+    /// pencerelerden HİÇBİRİ bir Space'te değilse (hepsi gizli) uygulama
+    /// penceresiz sayılır. Başka masaüstündeki / tam ekran pencereler bir
+    /// Space'te olduğundan "açık" sayılır (yanlış kapatma önlenir).
     ///
     /// AX çağrısı başarısız olursa (uygulama yanıt vermiyor, izin yok vb.) `nil`
     /// döner — bu "durum bilinmiyor" demektir ve "0 pencere" ile karıştırılmamalıdır.
@@ -115,9 +116,9 @@ final class AppWatcher {
             if !anyMinimized, isMinimized(window) { anyMinimized = true }
         }
         // AX'te standart pencere var ama hiçbiri minimize değil → bunların hepsi
-        // gizli (Discord gibi) olabilir. Pencere sunucusu ekranda görünür pencere
-        // bildirmiyorsa uygulama gerçekten penceresizdir.
-        if !result.isEmpty, !anyMinimized, !OnScreenWindowCache.hasOnScreenWindow(pid: pid) {
+        // gizli (Discord gibi) olabilir. Pencere sunucusuna sor: hiçbiri bir
+        // Space'te değilse uygulama gerçekten penceresizdir.
+        if !result.isEmpty, !anyMinimized, !WindowPresence.appHasLiveWindow(pid: pid) {
             return []
         }
         return result
@@ -247,35 +248,51 @@ private func axObserverCallback(_ observer: AXObserver,
     watcher.handleNotification()
 }
 
-/// Ekranda görünür (layer 0) penceresi olan uygulamaların pid kümesi.
+/// "Bu uygulamanın gerçekten var olan (bir Space'te bulunan) penceresi var mı?"
+///
+/// Discord gibi uygulamalar son pencere kapatılınca pencereyi `orderOut` ile
+/// gizler — gizli pencere HİÇBİR Space'te değildir. Başka masaüstündeki ya da
+/// arka planda tam ekran pencere ise bir Space'tedir. Bu ayrım, kapatılması
+/// gereken uygulamayı (gizli) kapatılmaması gerekenden (başka Space) ayırır.
 ///
 /// `CGWindowListCopyWindowInfo` sistem genelinde pencere bilgisi tahsis eden
-/// pahalı bir çağrıdır. Emniyet taraması her pencereli uygulama için
-/// `standardWindows()` çağırır; her biri ayrı ayrı sorsa tur başına onlarca
-/// tahsis olurdu. Sonuç çok kısa süre (0,5 sn) önbelleğe alınır: tüm tarama
-/// turu tek bir CG çağrısı paylaşır, recheck (1 sn sonra) ise süre dolduğundan
-/// taze veri alır. Yalnızca ana thread'den erişilir — kilit gerekmez.
-private enum OnScreenWindowCache {
-    private static var pids: Set<pid_t> = []
+/// pahalı bir çağrıdır; emniyet taraması her pencereli uygulama için sorar.
+/// Sistem pencere listesi 0,5 sn önbelleğe alınır: tüm tarama turu tek anlık
+/// görüntüyü paylaşır, recheck (1 sn sonra) süre dolduğu için taze veri alır.
+/// Yalnızca ana thread'den erişilir — kilit gerekmez.
+private enum WindowPresence {
+    private static var windowsByPID: [pid_t: [(id: CGWindowID, onScreen: Bool)]] = [:]
     private static var capturedAt: TimeInterval = -1
 
-    static func hasOnScreenWindow(pid: pid_t) -> Bool {
+    /// Uygulamanın bir Space'te (görünür / başka masaüstü / tam ekran) penceresi
+    /// var mı? Tüm pencereleri gizliyse (orderOut, Space'siz) `false`.
+    static func appHasLiveWindow(pid: pid_t) -> Bool {
         let now = ProcessInfo.processInfo.systemUptime
         if capturedAt < 0 || now - capturedAt > 0.5 {
             capturedAt = now
-            pids = capture()
+            windowsByPID = capture()
         }
-        return pids.contains(pid)
+        guard let windows = windowsByPID[pid], !windows.isEmpty else { return false }
+        // CGS Space sorgusu: pencereler kaç Space'te? >0 ise gerçek pencere var.
+        if let spaceCount = WindowSpaces.spaceCount(ofWindowIDs: windows.map(\.id)) {
+            return spaceCount > 0
+        }
+        // CGS bu macOS'ta yok → güvenli geri-düşüş: yalnızca ekranda görünür
+        // pencereye bak (eski davranış — tam ekran/başka-Space kenar durumu
+        // kalır ama Discord düzeltmesi yine çalışır).
+        return windows.contains { $0.onScreen }
     }
 
-    private static func capture() -> Set<pid_t> {
-        guard let list = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)
-                as? [[String: Any]] else { return [] }
-        var result: Set<pid_t> = []
+    private static func capture() -> [pid_t: [(id: CGWindowID, onScreen: Bool)]] {
+        guard let list = CGWindowListCopyWindowInfo([], kCGNullWindowID)
+                as? [[String: Any]] else { return [:] }
+        var result: [pid_t: [(id: CGWindowID, onScreen: Bool)]] = [:]
         for window in list {
             guard (window[kCGWindowLayer as String] as? Int) == 0,
-                  let owner = window[kCGWindowOwnerPID as String] as? Int else { continue }
-            result.insert(pid_t(owner))
+                  let owner = window[kCGWindowOwnerPID as String] as? Int,
+                  let number = window[kCGWindowNumber as String] as? Int else { continue }
+            let onScreen = (window[kCGWindowIsOnscreen as String] as? Bool) ?? false
+            result[pid_t(owner), default: []].append((CGWindowID(number), onScreen))
         }
         return result
     }
