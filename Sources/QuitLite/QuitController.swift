@@ -55,7 +55,8 @@ final class QuitController {
     private func confirmAndQuit(_ watcher: AppWatcher) {
         guard !watcher.app.isTerminated else { return }
         // nil = AX durumu belirsiz → güvenli tarafta kal, kapatma.
-        guard let windows = watcher.standardWindows(), windows.isEmpty else {
+        // precise: kapatma kararını doğruluyoruz — gizli pencere denetimi şart.
+        guard let windows = watcher.standardWindows(precise: true), windows.isEmpty else {
             if kDebugMode {
                 NSLog("QuitLite[quit] \(watcher.bundleID): 1. doğrulama başarısız → kapatma iptal")
             }
@@ -68,7 +69,7 @@ final class QuitController {
             self.pending[watcher.pid] = nil
             guard !watcher.app.isTerminated else { return }
             // İkinci (son) doğrulama: hâlâ kesin olarak 0 pencere mi?
-            guard let windows = watcher.standardWindows(), windows.isEmpty else {
+            guard let windows = watcher.standardWindows(precise: true), windows.isEmpty else {
                 if kDebugMode {
                     NSLog("QuitLite[quit] \(watcher.bundleID): 2. doğrulama başarısız → iptal")
                 }
