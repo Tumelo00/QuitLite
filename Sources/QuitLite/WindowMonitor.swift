@@ -76,6 +76,10 @@ final class WindowMonitor {
     }
 
     private func handleWindowsEmptied(_ watcher: AppWatcher) {
+        if kDebugMode {
+            NSLog("QuitLite[empty] \(watcher.bundleID): tüm standart pencereler "
+                + "kapandı (policy=\(watcher.app.activationPolicy.rawValue))")
+        }
         // Uygulama izlenmeye başladıktan sonra menü çubuğu moduna (.accessory)
         // geçmiş olabilir; o hâlde penceresiz çalışması normaldir, kapatma.
         guard watcher.app.activationPolicy == .regular else { return }

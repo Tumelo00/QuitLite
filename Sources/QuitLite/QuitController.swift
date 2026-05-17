@@ -27,7 +27,16 @@ final class QuitController {
         // Zaten bekleyen ya da kapatma isteği gönderilmiş bir uygulamayı
         // yeniden zamanlama — aksi halde tekrarlayan tetiklemeler debounce
         // sayacını sürekli sıfırlar ve uygulama hiç kapanmaz.
-        guard pending[pid] == nil, !quitRequested.contains(pid) else { return }
+        guard pending[pid] == nil, !quitRequested.contains(pid) else {
+            if kDebugMode {
+                NSLog("QuitLite[quit] \(watcher.bundleID): scheduleQuit atlandı "
+                    + "(pending=\(pending[pid] != nil) quitRequested=\(quitRequested.contains(pid)))")
+            }
+            return
+        }
+        if kDebugMode {
+            NSLog("QuitLite[quit] \(watcher.bundleID): kapatma zamanlandı (gecikme \(max(0, delay))s)")
+        }
 
         let work = DispatchWorkItem { [weak self, weak watcher] in
             guard let self, let watcher else { return }
@@ -46,7 +55,12 @@ final class QuitController {
     private func confirmAndQuit(_ watcher: AppWatcher) {
         guard !watcher.app.isTerminated else { return }
         // nil = AX durumu belirsiz → güvenli tarafta kal, kapatma.
-        guard let windows = watcher.standardWindows(), windows.isEmpty else { return }
+        guard let windows = watcher.standardWindows(), windows.isEmpty else {
+            if kDebugMode {
+                NSLog("QuitLite[quit] \(watcher.bundleID): 1. doğrulama başarısız → kapatma iptal")
+            }
+            return
+        }
 
         let pid = watcher.pid
         let recheck = DispatchWorkItem { [weak self, weak watcher] in
@@ -54,7 +68,12 @@ final class QuitController {
             self.pending[watcher.pid] = nil
             guard !watcher.app.isTerminated else { return }
             // İkinci (son) doğrulama: hâlâ kesin olarak 0 pencere mi?
-            guard let windows = watcher.standardWindows(), windows.isEmpty else { return }
+            guard let windows = watcher.standardWindows(), windows.isEmpty else {
+                if kDebugMode {
+                    NSLog("QuitLite[quit] \(watcher.bundleID): 2. doğrulama başarısız → iptal")
+                }
+                return
+            }
             // Bekleme sırasında uygulama menü çubuğu moduna geçmiş olabilir.
             guard watcher.app.activationPolicy == .regular else { return }
             // Bekleme sırasında uygulama kara listeye alınmış ya da otomatik
@@ -63,7 +82,11 @@ final class QuitController {
             // quitRequested'a yalnızca kapatma isteği BAŞARIYLA gönderilirse ekle.
             // terminate() false dönerse istek gitmemiştir; pid'i işaretlersek
             // uygulama bir daha hiç kapatılamaz — bu yüzden yalnızca başarıda işaretle.
-            if watcher.app.terminate() {
+            let terminated = watcher.app.terminate()
+            if kDebugMode {
+                NSLog("QuitLite[quit] \(watcher.bundleID): terminate() denendi → \(terminated)")
+            }
+            if terminated {
                 self.quitRequested.insert(watcher.pid)
             }
         }
