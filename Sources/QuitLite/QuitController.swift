@@ -54,9 +54,8 @@ final class QuitController {
     /// cancelQuit) ikinci doğrulama iptal edilir.
     private func confirmAndQuit(_ watcher: AppWatcher) {
         guard !watcher.app.isTerminated else { return }
-        // isWindowless: true = kesin penceresiz; false = penceresi var;
-        // nil = AX durumu belirsiz. true değilse kapatma iptal.
-        guard watcher.isWindowless() == true else {
+        // nil = AX durumu belirsiz → güvenli tarafta kal, kapatma.
+        guard let windows = watcher.standardWindows(), windows.isEmpty else {
             if kDebugMode {
                 NSLog("QuitLite[quit] \(watcher.bundleID): 1. doğrulama başarısız → kapatma iptal")
             }
@@ -68,8 +67,8 @@ final class QuitController {
             guard let self, let watcher else { return }
             self.pending[watcher.pid] = nil
             guard !watcher.app.isTerminated else { return }
-            // İkinci (son) doğrulama: hâlâ kesin olarak penceresiz mi?
-            guard watcher.isWindowless() == true else {
+            // İkinci (son) doğrulama: hâlâ kesin olarak 0 pencere mi?
+            guard let windows = watcher.standardWindows(), windows.isEmpty else {
                 if kDebugMode {
                     NSLog("QuitLite[quit] \(watcher.bundleID): 2. doğrulama başarısız → iptal")
                 }

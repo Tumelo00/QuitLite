@@ -98,13 +98,8 @@ enum DebugCommands {
                 let num = w[kCGWindowNumber as String] as? Int ?? -1
                 let onscreen = (w[kCGWindowIsOnscreen as String] as? Bool) ?? false
                 let alpha = w[kCGWindowAlpha as String] as? Double ?? -1
-                var size = "?"
-                if let bd = w[kCGWindowBounds as String] as? NSDictionary,
-                   let rect = CGRect(dictionaryRepresentation: bd as CFDictionary) {
-                    size = "\(Int(rect.width))x\(Int(rect.height))"
-                }
                 r += "   CG[\(i)] num=\(num) layer=\(layer) "
-                r += "onscreen=\(onscreen) alpha=\(alpha) size=\(size)\n"
+                r += "onscreen=\(onscreen) alpha=\(alpha)\n"
             }
             r += "\n"
         }
@@ -151,10 +146,9 @@ enum DebugCommands {
         let subrole = string(kAXSubroleAttribute as String)
         let title = string(kAXTitleAttribute as String)
         let minimized = flag(kAXMinimizedAttribute as String)
-        let fullscreen = flag("AXFullScreen")
         let pos = geom(kAXPositionAttribute as String, .cgPoint)
         let size = geom(kAXSizeAttribute as String, .cgSize)
         return "role=\(role) subrole=\(subrole) minimized=\(minimized) "
-            + "fullscreen=\(fullscreen) pos=\(pos) size=\(size) title=\"\(title)\""
+            + "pos=\(pos) size=\(size) title=\"\(title)\""
     }
 }

@@ -83,49 +83,48 @@ final class AppWatcher {
         observer = nil
     }
 
-    /// AX'in bildirdiği "standart" pencerelerin listesi (kayan palet/panel gibi
-    /// yardımcılar elenir). Bu liste yalnızca "yok edildi" bildirimi kaydı için
-    /// kullanılır; kapatma KARARI için `isWindowless()` kullanılır.
+    /// Uygulamanın o anki gerçek (uygulamayı ayakta tutan) pencerelerini döndürür.
+    /// Kayan palet/panel gibi yardımcı pencereler sayılmaz. Minimize edilmiş
+    /// pencereler "açık" sayılır.
     ///
-    /// AX çağrısı başarısız olursa `nil` döner — "durum bilinmiyor" demektir.
+    /// Discord/Slack/VS Code gibi Electron uygulamaları son pencere kapatılınca
+    /// pencereyi YOK ETMEZ — `orderOut` ile gizler. Gizli pencere AX listesinde
+    /// "standart pencere" olarak kalır; AX bu yüzden tek başına yetmez. Çözüm:
+    /// AX standart pencereleri varsa, ek olarak pencere sunucusuna (CGWindowList)
+    /// sorulur — gerçekten ekranda görünen pencere yoksa VE hiçbiri minimize
+    /// değilse uygulama penceresiz sayılır.
+    ///
+    /// AX çağrısı başarısız olursa (uygulama yanıt vermiyor, izin yok vb.) `nil`
+    /// döner — bu "durum bilinmiyor" demektir ve "0 pencere" ile karıştırılmamalıdır.
+    /// Aksi halde yanıt vermeyen bir uygulama yanlışlıkla kapatılabilir.
     func standardWindows() -> [AXUIElement]? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value) == .success,
               let windows = value as? [AXUIElement] else { return nil }
         var result: [AXUIElement] = []
+        var anyMinimized = false
         for window in windows {
-            // Alt-rol SORGULANAMAZSA durum belirsizdir → nil dön; aksi halde
-            // sorgu hatası "0 pencere" sanılıp uygulama yanlışlıkla kapatılır.
+            // Herhangi bir pencerenin alt-rolü SORGULANAMAZSA (örn. izin tam bu
+            // sırada geri alındı) durum belirsizdir → nil dön. Aksi halde sorgu
+            // hataları "0 standart pencere" sanılıp uygulama yanlışlıkla kapatılır.
             guard let standard = isStandardWindow(window) else { return nil }
-            if standard { result.append(window) }
+            guard standard else { continue }
+            result.append(window)
+            // Tek bir minimize pencere bile uygulamayı "açık" yapar; ilkini
+            // bulunca AX'e sormayı bırak.
+            if !anyMinimized, isMinimized(window) { anyMinimized = true }
+        }
+        // AX'te standart pencere var ama hiçbiri minimize değil → bunların hepsi
+        // gizli (Discord gibi) olabilir. Pencere sunucusu ekranda görünür pencere
+        // bildirmiyorsa uygulama gerçekten penceresizdir.
+        if !result.isEmpty, !anyMinimized, !OnScreenWindowCache.hasOnScreenWindow(pid: pid) {
+            return []
         }
         return result
     }
 
-    /// Uygulama kapatılmaya aday mı — yani penceresiz mi?
-    ///  • AX standart pencere SAYISI ≥ 1:
-    ///     – ekranda görünür pencere var → açık (false).
-    ///     – minimize pencere var → açık (false).
-    ///     – aksi halde hepsi gizli (Discord — `orderOut`) → penceresiz (true).
-    ///  • AX standart pencere YOK (0):
-    ///     – ekranı kaplayan bir pencere varsa uygulama TAM EKRANDADIR (tam ekran
-    ///       uygulama AX'te pencere bildirmez) → açık (false).
-    ///     – aksi halde gerçekten penceresiz (true).
-    /// AX durumu belirsizse `nil` döner — çağıran kapatma yapmaz.
-    func isWindowless() -> Bool? {
-        guard let windows = standardWindows() else { return nil }
-        if !windows.isEmpty {
-            if WindowPresence.hasOnScreenWindow(pid: pid) { return false }
-            for window in windows where isMinimized(window) { return false }
-            return true
-        }
-        // AX 0 standart pencere bildiriyor. Tam ekran uygulama da 0 bildirir —
-        // ekranı kaplayan penceresi varsa kapatma.
-        return !WindowPresence.hasFullScreenWindow(pid: pid)
-    }
-
-    /// Pencere minimize mi? AX hatasında `false` döner — güvenli yön: emin
-    /// olunmayan pencere "minimize değil" sayılır, karar görünürlüğe bırakılır.
+    /// Pencere minimize mi? AX hatasında `false` döner — bu güvenli yöndür:
+    /// pencere yine de listede sayılır, uygulama yanlışlıkla kapatılmaz.
     private func isMinimized(_ window: AXUIElement) -> Bool {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString,
@@ -188,25 +187,28 @@ final class AppWatcher {
         registeredWindows = current
     }
 
-    /// Pencere durumunu yeniden hesaplar ve uygun callback'i tetikler.
+    /// Pencere sayısını yeniden hesaplar ve uygun callback'i tetikler.
     func evaluate() {
         guard !app.isTerminated else { return }
-        // nil = durum belirlenemedi (AX hatası) → hiçbir şey yapma.
-        guard let windowless = isWindowless() else {
-            if kDebugMode { NSLog("QuitLite[eval] \(bundleID): durum belirsiz → karar yok") }
+        // nil = pencere durumu belirlenemedi (AX hatası) → hiçbir şey yapma.
+        guard let windows = standardWindows() else {
+            if kDebugMode { NSLog("QuitLite[eval] \(bundleID): standardWindows=nil → karar yok") }
             return
         }
-        if windowless {
-            if kDebugMode && hadWindow {
-                NSLog("QuitLite[eval] \(bundleID): penceresiz → onWindowsEmptied")
-            }
-            if hadWindow { onWindowsEmptied?(self) }
-        } else {
+        if !windows.isEmpty {
             if kDebugMode && !hadWindow {
-                NSLog("QuitLite[eval] \(bundleID): hadWindow false→true")
+                NSLog("QuitLite[eval] \(bundleID): hadWindow false→true "
+                    + "(\(windows.count) standart pencere)")
             }
             hadWindow = true
             onWindowAppeared?(self)
+        } else if hadWindow {
+            if kDebugMode {
+                NSLog("QuitLite[eval] \(bundleID): 0 standart pencere + hadWindow → onWindowsEmptied")
+            }
+            onWindowsEmptied?(self)
+        } else if kDebugMode {
+            NSLog("QuitLite[eval] \(bundleID): 0 standart pencere ama hadWindow=false → atlandı")
         }
     }
 
@@ -245,62 +247,36 @@ private func axObserverCallback(_ observer: AXObserver,
     watcher.handleNotification()
 }
 
-/// Pencere sunucusuna (CGWindowList) dayalı iki soruyu yanıtlar:
-///  • Uygulamanın O AN ekranda görünen penceresi var mı?
-///  • Uygulamanın bir ekranı tam kaplayan (tam ekran) penceresi var mı?
+/// Ekranda görünür (layer 0) penceresi olan uygulamaların pid kümesi.
 ///
 /// `CGWindowListCopyWindowInfo` sistem genelinde pencere bilgisi tahsis eden
-/// pahalı bir çağrıdır; emniyet taraması her pencereli uygulama için sorar.
-/// Sonuç 0,5 sn önbelleğe alınır: tüm tarama turu tek anlık görüntüyü paylaşır,
-/// recheck (1 sn sonra) süre dolduğu için taze veri alır. Yalnızca ana
-/// thread'den erişilir — kilit gerekmez.
-private enum WindowPresence {
-    private static var onScreenPIDs: Set<pid_t> = []
-    private static var fullScreenPIDs: Set<pid_t> = []
+/// pahalı bir çağrıdır. Emniyet taraması her pencereli uygulama için
+/// `standardWindows()` çağırır; her biri ayrı ayrı sorsa tur başına onlarca
+/// tahsis olurdu. Sonuç çok kısa süre (0,5 sn) önbelleğe alınır: tüm tarama
+/// turu tek bir CG çağrısı paylaşır, recheck (1 sn sonra) ise süre dolduğundan
+/// taze veri alır. Yalnızca ana thread'den erişilir — kilit gerekmez.
+private enum OnScreenWindowCache {
+    private static var pids: Set<pid_t> = []
     private static var capturedAt: TimeInterval = -1
 
-    /// Bu uygulamanın O AN ekranda görünen (layer 0) bir penceresi var mı?
     static func hasOnScreenWindow(pid: pid_t) -> Bool {
-        refreshIfStale()
-        return onScreenPIDs.contains(pid)
-    }
-
-    /// Bu uygulamanın boyutu bir ekranı tam kaplayan (= macOS tam ekran modu)
-    /// penceresi var mı? Tam ekran uygulama AX'te pencere bildirmediği için bu
-    /// CG tabanlı kontrol gerekir.
-    static func hasFullScreenWindow(pid: pid_t) -> Bool {
-        refreshIfStale()
-        return fullScreenPIDs.contains(pid)
-    }
-
-    private static func refreshIfStale() {
         let now = ProcessInfo.processInfo.systemUptime
-        guard capturedAt < 0 || now - capturedAt > 0.5 else { return }
-        capturedAt = now
-        capture()
+        if capturedAt < 0 || now - capturedAt > 0.5 {
+            capturedAt = now
+            pids = capture()
+        }
+        return pids.contains(pid)
     }
 
-    private static func capture() {
-        var onScreen: Set<pid_t> = []
-        var fullScreen: Set<pid_t> = []
-        let screenSizes = NSScreen.screens.map { $0.frame.size }
-        if let list = CGWindowListCopyWindowInfo([], kCGNullWindowID) as? [[String: Any]] {
-            for window in list {
-                guard (window[kCGWindowLayer as String] as? Int) == 0,
-                      let owner = window[kCGWindowOwnerPID as String] as? Int else { continue }
-                let pid = pid_t(owner)
-                if (window[kCGWindowIsOnscreen as String] as? Bool) == true {
-                    onScreen.insert(pid)
-                }
-                if let boundsDict = window[kCGWindowBounds as String] as? NSDictionary,
-                   let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary),
-                   screenSizes.contains(where: {
-                       abs($0.width - bounds.width) < 1 && abs($0.height - bounds.height) < 1 }) {
-                    fullScreen.insert(pid)
-                }
-            }
+    private static func capture() -> Set<pid_t> {
+        guard let list = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)
+                as? [[String: Any]] else { return [] }
+        var result: Set<pid_t> = []
+        for window in list {
+            guard (window[kCGWindowLayer as String] as? Int) == 0,
+                  let owner = window[kCGWindowOwnerPID as String] as? Int else { continue }
+            result.insert(pid_t(owner))
         }
-        onScreenPIDs = onScreen
-        fullScreenPIDs = fullScreen
+        return result
     }
 }
