@@ -445,6 +445,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate,
     func windowWillClose(_ notification: Notification) {
         statusTimer?.invalidate()
         statusTimer = nil
+        // GUI süreci sonlanmadan, bekleyen tüm ayar yazımlarını diske kesinleştir
+        // (örn. sürükleme bitişi kaçırılmış bir slider değeri).
+        prefs.flush()
     }
 }
 
