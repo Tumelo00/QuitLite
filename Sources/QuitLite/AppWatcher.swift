@@ -53,7 +53,7 @@ final class AppWatcher {
         var obs: AXObserver?
         guard AXObserverCreate(pid, axObserverCallback, &obs) == .success, let obs else {
             // Nadir. Uygulama yine de emniyet taramasıyla izlenir (olay tabanlı
-            // değil, ~10 sn gecikmeli); sessiz kalmasın diye kaydet.
+            // değil, ~2 sn gecikmeli); sessiz kalmasın diye kaydet.
             NSLog("QuitLite: AXObserver oluşturulamadı — pid \(pid) (\(bundleID))")
             return
         }

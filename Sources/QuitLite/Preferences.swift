@@ -120,7 +120,7 @@ public final class Preferences {
     }
 
     /// Çekirdek menü çubuğunda bir simge göstersin mi? Açıkken çekirdek
-    /// NSApplication ile çalışır (~10 MB); kapalıyken hafif moddadır (~2,3 MB).
+    /// NSApplication ile çalışır (~10 MB); kapalıyken hafif moddadır (~3 MB).
     /// Değiştiğinde çekirdeğin yeniden başlatılması gerekir (CoreAgent.restart).
     public var showMenuBarIcon: Bool {
         get { defaults.bool(forKey: Key.showMenuBarIcon) }

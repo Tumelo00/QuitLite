@@ -2,7 +2,7 @@ import AppKit
 
 // QuitLite tek bir binary'dir, iki modda çalışır:
 //   --core       → arka plan çekirdeği. NSApplication oluşturulmaz; menü çubuğu,
-//                  pencere, dock yok. Yalnızca pencere izleme + kapatma. ~2 MB.
+//                  pencere, dock yok. Yalnızca pencere izleme + kapatma. ~3 MB.
 //   (varsayılan) → ayar penceresi. Talep üzerine çalışır, pencere kapanınca sonlanır.
 //
 // İki mod aynı binary olduğu için tek bir Erişilebilirlik (TCC) kimliği paylaşır.
@@ -50,7 +50,7 @@ if CommandLine.arguments.contains("--core") {
         app.setActivationPolicy(.accessory)
         app.run()
     } else {
-        // Hafif mod: NSApplication hiç yüklenmez (~2,3 MB).
+        // Hafif mod: NSApplication hiç yüklenmez (~3 MB).
         RunLoop.main.run()
     }
 } else {

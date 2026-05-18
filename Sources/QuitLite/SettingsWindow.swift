@@ -139,7 +139,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate,
 
         stack.addArrangedSubview(caption("Menü çubuğuna QuitLite simgesi ekler; "
             + "oradan ayarları açabilir veya QuitLite'tan çıkabilirsiniz. "
-            + "Bellek kullanımı ~2,3 MB'den ~10 MB'ye çıkar."))
+            + "Bellek kullanımı ~3 MB'den ~10 MB'ye çıkar."))
 
         let delayTitle = NSTextField(labelWithString: "Kapatma gecikmesi")
         stack.addArrangedSubview(delayTitle)
