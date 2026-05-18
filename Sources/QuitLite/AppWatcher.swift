@@ -128,13 +128,7 @@ final class AppWatcher {
         // AX'te standart pencere var ama hiçbiri minimize değil → bunların hepsi
         // gizli (Discord gibi) olabilir. Pencere sunucusu ekranda görünür pencere
         // bildirmiyorsa uygulama penceresiz sayılır (gizli pencere kapatma yolu).
-        //
-        // app.isHidden: kullanıcı uygulamayı Cmd-H ile GİZLEDİ — bu bir pencere
-        // kapatma değildir, pencereler olduğu gibi durur. Gizli uygulama "açık"
-        // sayılır; aksi halde Cmd-H'lanan her uygulama yanlışlıkla kapatılırdı.
-        // (Electron'un pencere kapatması uygulamayı gizlemez → isHidden false →
-        // o yol etkilenmez.)
-        if !result.isEmpty, !anyMinimized, !app.isHidden,
+        if !result.isEmpty, !anyMinimized,
            !OnScreenWindowCache.hasOnScreenWindow(pid: pid) {
             return []
         }
