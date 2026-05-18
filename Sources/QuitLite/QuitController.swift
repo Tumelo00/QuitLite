@@ -55,9 +55,13 @@ final class QuitController {
     private func confirmAndQuit(_ watcher: AppWatcher) {
         guard !watcher.app.isTerminated else { return }
         // nil = AX durumu belirsiz → güvenli tarafta kal, kapatma.
-        guard let windows = watcher.standardWindows(), windows.isEmpty else {
+        // hasParkedWindowOnAnotherSpace: AX boş görünüyor ama pencere başka
+        // Space'te (kullanıcı bir uygulamayı tam ekran yapmış) → kapatma.
+        guard let windows = watcher.standardWindows(), windows.isEmpty,
+              !watcher.hasParkedWindowOnAnotherSpace() else {
             if kDebugMode {
-                NSLog("QuitLite[quit] \(watcher.bundleID): 1. doğrulama başarısız → kapatma iptal")
+                NSLog("QuitLite[quit] \(watcher.bundleID): 1. doğrulama başarısız "
+                    + "(pencere var ya da başka Space'te park) → kapatma iptal")
             }
             return
         }
@@ -67,10 +71,13 @@ final class QuitController {
             guard let self, let watcher else { return }
             self.pending[watcher.pid] = nil
             guard !watcher.app.isTerminated else { return }
-            // İkinci (son) doğrulama: hâlâ kesin olarak 0 pencere mi?
-            guard let windows = watcher.standardWindows(), windows.isEmpty else {
+            // İkinci (son) doğrulama: hâlâ kesin olarak 0 pencere mi VE pencere
+            // başka Space'e park olmamış mı?
+            guard let windows = watcher.standardWindows(), windows.isEmpty,
+                  !watcher.hasParkedWindowOnAnotherSpace() else {
                 if kDebugMode {
-                    NSLog("QuitLite[quit] \(watcher.bundleID): 2. doğrulama başarısız → iptal")
+                    NSLog("QuitLite[quit] \(watcher.bundleID): 2. doğrulama başarısız "
+                        + "(pencere var ya da başka Space'te park) → iptal")
                 }
                 return
             }

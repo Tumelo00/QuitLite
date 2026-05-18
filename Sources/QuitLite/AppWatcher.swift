@@ -29,6 +29,15 @@ final class AppWatcher {
     /// Hiç pencere açmamış (menü çubuğu / arka plan) uygulamalar asla kapatılmaz.
     private(set) var hadWindow = false
 
+    /// Bu uygulamanın EKRANDA görülmüş gerçek pencerelerinin CG pencere
+    /// numaraları. AX pencere listesi yalnızca AKTİF Space'i kapsadığından,
+    /// kullanıcı başka Space'e geçince (ya da bir uygulamayı tam ekran yapınca)
+    /// arka plandaki uygulamanın AX listesi boşalır — oysa penceresi durur.
+    /// Bu küme, "başka Space'e park olmuş pencere" ile "gerçekten kapanmış
+    /// pencere"yi ayırt etmek için kullanılır. Hayalet pencereler hiçbir zaman
+    /// ekranda olmadığından bu kümeye asla girmez.
+    private var knownOnScreenWindowIDs: Set<CGWindowID> = []
+
     /// Son standart pencere de kapandığında çağrılır.
     var onWindowsEmptied: ((AppWatcher) -> Void)?
     /// Yeniden pencere açıldığında çağrılır (bekleyen kapatmayı iptal için).
@@ -114,13 +123,49 @@ final class AppWatcher {
             // bulunca AX'e sormayı bırak.
             if !anyMinimized, isMinimized(window) { anyMinimized = true }
         }
+        // Bu uygulamanın ŞU AN ekranda (aktif Space'te) olan pencerelerinin CG
+        // numaralarını al; varsa "bilinen gerçek pencereler" olarak sakla — bir
+        // sonraki Space değişiminde park kontrolü için gerekecek.
+        let onScreenIDs = WindowServerCache.onScreenWindowIDs(pid: pid)
+        if !onScreenIDs.isEmpty { knownOnScreenWindowIDs = onScreenIDs }
         // AX'te standart pencere var ama hiçbiri minimize değil → bunların hepsi
         // gizli (Discord gibi) olabilir. Pencere sunucusu ekranda görünür pencere
-        // bildirmiyorsa uygulama gerçekten penceresizdir.
-        if !result.isEmpty, !anyMinimized, !OnScreenWindowCache.hasOnScreenWindow(pid: pid) {
+        // bildirmiyorsa uygulama penceresiz sayılır (gizli pencere kapatma yolu).
+        if !result.isEmpty, !anyMinimized, onScreenIDs.isEmpty {
             return []
         }
         return result
+    }
+
+    /// AX'in pencere listesi yalnızca AKTİF Space'i kapsar: tüm pencereleri
+    /// başka bir Space'te olan uygulama (kullanıcı Space değiştirince ya da
+    /// başka bir uygulamayı tam ekran yapınca) AX'e göre "penceresiz" görünür —
+    /// oysa penceresi durur. Bu, gerçekten penceresiz bir uygulamayla
+    /// karıştırılırsa arka plandaki uygulama yanlışlıkla kapatılır.
+    ///
+    /// Ayrım şudur: AX KESİNLİKLE 0 pencere bildiriyorsa (Space'e bağlı kör
+    /// nokta) VE bu uygulamanın daha önce EKRANDA görülmüş bir penceresi hâlâ
+    /// pencere sunucusunun sistem geneli listesinde (`[]` = tüm Space'ler)
+    /// duruyorsa → pencere başka Space'te park olmuştur, kapatılmamalıdır.
+    /// Gerçekten kapatılan pencere bu listeden anında düşer (test edilip
+    /// doğrulandı); park olan pencere kalır. Aradaki fark budur.
+    ///
+    /// Electron'un gizlediği (orderOut) pencerelerde AX listesi BOŞALMAZ
+    /// (pencere uygulamanın listesinde kalır) — bu yüzden gizli-pencereli
+    /// Electron uygulaması "park" sayılmaz, otomatik kapatma mantığı bozulmaz.
+    func hasParkedWindowOnAnotherSpace() -> Bool {
+        // Daha önce hiç ekranda pencere görülmediyse park kararı verilemez.
+        guard !knownOnScreenWindowIDs.isEmpty else { return false }
+        // AX'i yeniden sorgula: yalnızca AX KESİN olarak 0 pencere derse park
+        // ihtimali vardır. AX bir pencere bildiriyorsa (aktif Space'te ya da
+        // Electron-gizli) bu bir park durumu değildir.
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString,
+                                            &value) == .success,
+              let axWindows = value as? [AXUIElement], axWindows.isEmpty else { return false }
+        // Bilinen gerçek pencerelerden biri hâlâ sistem genelinde yaşıyor mu?
+        let alive = WindowServerCache.allWindowIDs()
+        return knownOnScreenWindowIDs.contains { alive.contains($0) }
     }
 
     /// Pencere minimize mi? AX hatasında `false` döner — bu güvenli yöndür:
@@ -203,10 +248,21 @@ final class AppWatcher {
             hadWindow = true
             onWindowAppeared?(self)
         } else if hadWindow {
-            if kDebugMode {
-                NSLog("QuitLite[eval] \(bundleID): 0 standart pencere + hadWindow → onWindowsEmptied")
+            // AX aktif Space'te 0 standart pencere bildiriyor. Uygulamayı
+            // penceresiz saymadan önce Space'e bağlı kör noktayı ele: penceresi
+            // başka Space'e park olmuş bir uygulama hâlâ "açık" sayılmalıdır.
+            if hasParkedWindowOnAnotherSpace() {
+                if kDebugMode {
+                    NSLog("QuitLite[eval] \(bundleID): 0 AX penceresi ama pencere "
+                        + "başka Space'te park → açık sayıldı")
+                }
+                onWindowAppeared?(self)
+            } else {
+                if kDebugMode {
+                    NSLog("QuitLite[eval] \(bundleID): 0 standart pencere + hadWindow → onWindowsEmptied")
+                }
+                onWindowsEmptied?(self)
             }
-            onWindowsEmptied?(self)
         } else if kDebugMode {
             NSLog("QuitLite[eval] \(bundleID): 0 standart pencere ama hadWindow=false → atlandı")
         }
@@ -247,35 +303,70 @@ private func axObserverCallback(_ observer: AXObserver,
     watcher.handleNotification()
 }
 
-/// Ekranda görünür (layer 0) penceresi olan uygulamaların pid kümesi.
+/// Pencere sunucusu (CoreGraphics) sorgularının kısa ömürlü önbelleği.
 ///
 /// `CGWindowListCopyWindowInfo` sistem genelinde pencere bilgisi tahsis eden
-/// pahalı bir çağrıdır. Emniyet taraması her pencereli uygulama için
-/// `standardWindows()` çağırır; her biri ayrı ayrı sorsa tur başına onlarca
-/// tahsis olurdu. Sonuç çok kısa süre (0,5 sn) önbelleğe alınır: tüm tarama
-/// turu tek bir CG çağrısı paylaşır, recheck (1 sn sonra) ise süre dolduğundan
-/// taze veri alır. Yalnızca ana thread'den erişilir — kilit gerekmez.
-private enum OnScreenWindowCache {
-    private static var pids: Set<pid_t> = []
-    private static var capturedAt: TimeInterval = -1
+/// pahalı bir çağrıdır. Emniyet taraması her uygulama için `standardWindows()`
+/// çağırır; her biri ayrı ayrı sorsa tur başına onlarca tahsis olurdu. Sonuç
+/// çok kısa süre (0,5 sn) önbelleğe alınır: tüm tarama turu tek bir CG çağrısı
+/// paylaşır, recheck (1 sn sonra) ise süre dolduğundan taze veri alır. Yalnızca
+/// ana thread'den erişilir — kilit gerekmez.
+///
+/// İki ayrı liste tutulur:
+/// - ekranda: yalnızca AKTİF Space'teki pencereler (`.optionOnScreenOnly`).
+/// - tümü: her Space'teki tüm pencereler (`[]`). Bu liste yalnızca bir uygulama
+///   penceresiz görününce (park kontrolü) sorgulanır — boştayken hiç çağrılmaz.
+private enum WindowServerCache {
+    private static let ttl: TimeInterval = 0.5
 
-    static func hasOnScreenWindow(pid: pid_t) -> Bool {
+    private static var onScreenByPID: [pid_t: Set<CGWindowID>] = [:]
+    private static var onScreenAt: TimeInterval = -1
+
+    private static var allIDs: Set<CGWindowID> = []
+    private static var allAt: TimeInterval = -1
+
+    /// Verilen uygulamanın AKTİF Space'te ekranda olan (layer 0) pencerelerinin
+    /// CG numaraları.
+    static func onScreenWindowIDs(pid: pid_t) -> Set<CGWindowID> {
         let now = ProcessInfo.processInfo.systemUptime
-        if capturedAt < 0 || now - capturedAt > 0.5 {
-            capturedAt = now
-            pids = capture()
+        if onScreenAt < 0 || now - onScreenAt > ttl {
+            onScreenAt = now
+            onScreenByPID = captureOnScreen()
         }
-        return pids.contains(pid)
+        return onScreenByPID[pid] ?? []
     }
 
-    private static func capture() -> Set<pid_t> {
+    /// Sistemdeki TÜM Space'lerde var olan (layer 0) pencerelerin CG numaraları.
+    static func allWindowIDs() -> Set<CGWindowID> {
+        let now = ProcessInfo.processInfo.systemUptime
+        if allAt < 0 || now - allAt > ttl {
+            allAt = now
+            allIDs = captureAll()
+        }
+        return allIDs
+    }
+
+    private static func captureOnScreen() -> [pid_t: Set<CGWindowID>] {
         guard let list = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)
-                as? [[String: Any]] else { return [] }
-        var result: Set<pid_t> = []
+                as? [[String: Any]] else { return [:] }
+        var result: [pid_t: Set<CGWindowID>] = [:]
         for window in list {
             guard (window[kCGWindowLayer as String] as? Int) == 0,
-                  let owner = window[kCGWindowOwnerPID as String] as? Int else { continue }
-            result.insert(pid_t(owner))
+                  let owner = window[kCGWindowOwnerPID as String] as? Int,
+                  let number = window[kCGWindowNumber as String] as? Int else { continue }
+            result[pid_t(owner), default: []].insert(CGWindowID(number))
+        }
+        return result
+    }
+
+    private static func captureAll() -> Set<CGWindowID> {
+        guard let list = CGWindowListCopyWindowInfo([], kCGNullWindowID)
+                as? [[String: Any]] else { return [] }
+        var result: Set<CGWindowID> = []
+        for window in list {
+            guard (window[kCGWindowLayer as String] as? Int) == 0,
+                  let number = window[kCGWindowNumber as String] as? Int else { continue }
+            result.insert(CGWindowID(number))
         }
         return result
     }
