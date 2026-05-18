@@ -37,9 +37,9 @@ that uses around **3 MB of RAM**.
 
 ![QuitLite memory usage in Activity Monitor](images/activity-monitor.png)
 
-QuitLite's background helper idles at roughly **3 MB of RAM** with near-zero
-CPU. It is event-driven rather than constantly polling, so it barely wakes your
-Mac and won't dent your battery — even running 24/7.
+QuitLite's background helper idles at roughly **3 MB of RAM** and uses very
+little CPU. It reacts quickly when you close a window, yet stays light enough
+to run 24/7 without denting your battery.
 
 ## Installation
 

@@ -39,9 +39,9 @@ Dock simgesi yok, kendine ait penceresi yok, gürültüsü yok — yalnızca yak
 
 ![Activity Monitor'de QuitLite bellek kullanımı](images/activity-monitor.png)
 
-QuitLite'ın arka plan yardımcısı, sıfıra yakın CPU ile yaklaşık **3 MB RAM**'de
-boşta durur. Sürekli yoklama yerine olay-güdümlü çalışır; Mac'i neredeyse hiç
-uyandırmaz ve 7/24 çalışsa bile pile yük bindirmez.
+QuitLite'ın arka plan yardımcısı yaklaşık **3 MB RAM** ve çok düşük CPU ile
+çalışır. Pencereyi kapattığında hızlı tepki verir, yine de 7/24 açık kalıp
+pile yük bindirmeyecek kadar hafif kalır.
 
 ## Kurulum
 

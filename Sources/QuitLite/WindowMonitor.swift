@@ -10,11 +10,14 @@ final class WindowMonitor {
     private var running = false
     private var sweepCount = 0
 
-    /// AX callback'leri kaçırılırsa diye düşük frekanslı emniyet taraması.
-    /// Olağan durumda kapatma anında AX observer ile algılanır; tarama yalnızca
-    /// kaçırılan olaylar için yedektir. Geniş tolerans ile macOS bu zamanlayıcıyı
-    /// başka uyanmalara denk getirip birleştirir → şarj tüketimi en aza iner.
-    private let sweepInterval: TimeInterval = 10.0
+    /// Emniyet taraması aralığı. Olağan durumda kapatma anında AX observer ile
+    /// algılanır; ancak pencereyi yok etmeden gizleyen uygulamalarda (Discord
+    /// gibi) ya da AX olayı tetiklemeyen pencere kapanışlarında kapanışı bu
+    /// tarama yakalar. 2 sn: kullanıcı pencereyi kapatınca uygulamanın hızlıca
+    /// (~3-4 sn içinde) kapatılması için. Tolerans ile macOS zamanlayıcıyı başka
+    /// uyanmalara denk getirip birleştirir; tarama işi de hafiftir (uygulama
+    /// başına tek AX sorgusu) → şarj etkisi düşük kalır.
+    private let sweepInterval: TimeInterval = 2.0
 
     func start() {
         guard !running else { return }
