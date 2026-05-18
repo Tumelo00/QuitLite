@@ -48,7 +48,10 @@ if [ -z "$SIGN_ID" ]; then
   # Tırnaklar arasındaki adı, içinde "QuitLite" geçenden çıkar. Tırnak içermeyen
   # bir desen kullanılır ki açgözlü .* yanlış alana taşmasın.
   # head -n1 boş çıktıda da 0 döner → set -e/pipefail derlemeyi durdurmaz.
-  SIGN_ID="$(security find-identity -v -p codesigning 2>/dev/null \
+  # NOT: '-v' (yalnız geçerli) KULLANILMAZ — kendinden imzalı kod imzalama
+  # sertifikaları "güvenilir kök"e zincirlenmediğinden -v onları gizler; oysa
+  # codesign onlarla sorunsuz imzalar ve TCC için sabit bir kimlik üretir.
+  SIGN_ID="$(security find-identity -p codesigning 2>/dev/null \
              | sed -n 's/^[^"]*"\([^"]*QuitLite[^"]*\)".*/\1/p' | head -n1)"
 fi
 if [ -n "$SIGN_ID" ]; then

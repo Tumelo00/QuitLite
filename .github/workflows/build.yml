@@ -46,7 +46,7 @@ jobs:
              && security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$CERT_PASSWORD" -T /usr/bin/codesign \
              && security set-key-partition-list -S apple-tool:,apple: -s -k "$KPWD" "$KEYCHAIN" \
              && security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"'); then
-            echo "QUITLITE_SIGN_ID=QuitLite Self-Signed" >> "$GITHUB_ENV"
+            echo "QUITLITE_SIGN_ID=QuitLite By Tumelo" >> "$GITHUB_ENV"
             echo "::notice::Kendinden imzalı sertifika içe aktarıldı."
           else
             rm -f "$RUNNER_TEMP/cert.p12"
