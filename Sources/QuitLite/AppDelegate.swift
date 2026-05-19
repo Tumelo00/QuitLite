@@ -2,7 +2,7 @@ import AppKit
 
 /// Ayar penceresi uygulamasının delegesi.
 /// Menü çubuğu simgesi yoktur; tek işi ayar penceresini göstermektir.
-/// Pencere kapanınca süreç sonlanır — arka planda yalnızca ~2 MB'lik çekirdek kalır.
+/// Pencere kapanınca süreç sonlanır — arka planda yalnızca ~3 MB'lik çekirdek kalır.
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var settings: SettingsWindowController?
