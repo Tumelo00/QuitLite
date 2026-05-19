@@ -6,7 +6,7 @@ let package = Package(
     platforms: [.macOS(.v13)],
     targets: [
         // Tek binary, iki modda çalışır (bkz. main.swift):
-        //   --core      → arka plan çekirdeği (NSApplication yok, ~2 MB)
+        //   --core      → arka plan çekirdeği (NSApplication yok, ~3 MB)
         //   (varsayılan) → ayar penceresi
         .executableTarget(
             name: "QuitLite",
